@@ -1,0 +1,9 @@
+node_modules/
+out/
+release/
+dist/
+bot/node_modules/
+*.tsbuildinfo
+.env
+bot.log
+*.db
