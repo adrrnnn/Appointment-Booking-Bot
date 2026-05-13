@@ -4,6 +4,7 @@ import type { ScheduledTask } from "@/types";
 
 interface Props {
   store: AppStore;
+  onForceStart: (task: ScheduledTask) => void;
 }
 
 const TASK_STATUS_CLASS: Record<ScheduledTask["status"], string> = {
@@ -30,7 +31,7 @@ function formatDate(ts: number): string {
   });
 }
 
-export function SchedulingArea({ store }: Props) {
+export function SchedulingArea({ store, onForceStart }: Props) {
   const [selectedPresetId, setSelectedPresetId] = useState("");
   const [selectedDriverIdx, setSelectedDriverIdx] = useState(0);
   const [scheduledFor, setScheduledFor] = useState("");
@@ -199,15 +200,27 @@ export function SchedulingArea({ store }: Props) {
                     Driver {task.driverIdx + 1} - {formatDate(task.scheduledFor)}
                   </div>
                 </div>
-                {task.status === "pending" && (
-                  <button
-                    type="button"
-                    className="btn-ghost text-xs px-2 text-muted-foreground hover:text-red-400 flex-shrink-0"
-                    onClick={() => handleRemoveTask(task.id)}
-                  >
-                    Remove
-                  </button>
-                )}
+                <div className="flex items-center gap-1.5 flex-shrink-0">
+                  {(task.status === "tokens_ready" || task.status === "pending" || task.status === "awaiting_tokens" || task.status === "failed") && (
+                    <button
+                      type="button"
+                      className="btn-primary text-xs px-2 py-1"
+                      onClick={() => onForceStart(task)}
+                      title="Force start this task now"
+                    >
+                      Force Start
+                    </button>
+                  )}
+                  {task.status !== "running" && task.status !== "done" && (
+                    <button
+                      type="button"
+                      className="btn-ghost text-xs px-2 text-muted-foreground hover:text-red-400"
+                      onClick={() => handleRemoveTask(task.id)}
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
               </div>
             ))}
           </div>

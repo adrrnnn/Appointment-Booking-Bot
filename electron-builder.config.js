@@ -33,8 +33,14 @@ module.exports = {
         target: "nsis",
         arch: ["x64"],
       },
+      {
+        target: "portable",
+        arch: ["x64"],
+      },
     ],
     icon: "resources/icon.ico",
+    signingHashAlgorithms: null,
+    sign: null,
   },
   nsis: {
     oneClick: false,

@@ -107,6 +107,29 @@ export function App() {
     setTokenRefreshTask(null);
   }
 
+  function handleForceStart(task: ScheduledTask) {
+    const preset = store.presets.find((p) => p.id === task.presetId);
+    if (!preset) return;
+    if (!task.freshSearchToken || !task.freshBookingTokens?.length) {
+      setTokenRefreshTask({ task, preset });
+      return;
+    }
+    const updated = store.scheduledTasks.map((t) =>
+      t.id === task.id ? { ...t, status: "running" as const } : t,
+    );
+    store.setScheduledTasks(updated);
+    window.api.saveSchedule(updated);
+    const driver = { ...preset.driver, bookingTokens: task.freshBookingTokens };
+    store.setBotRunning(true);
+    store.clearLogs();
+    setTab("Console");
+    window.api.botStart({
+      searchToken: task.freshSearchToken,
+      port_code: store.portCode,
+      drivers: [driver],
+    }).finally(() => store.setBotRunning(false));
+  }
+
   function handleTokenRefreshDismiss() {
     if (!tokenRefreshTask) return;
     const updated = store.scheduledTasks.map((t) =>
@@ -192,7 +215,7 @@ export function App() {
         )}
         {tab === "Scheduling" && (
           <div className="h-full">
-            <SchedulingArea store={store} />
+            <SchedulingArea store={store} onForceStart={handleForceStart} />
           </div>
         )}
         {tab === "Console" && (
