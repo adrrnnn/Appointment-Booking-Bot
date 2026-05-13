@@ -7,6 +7,7 @@ interface Props {
   idx: number;
   driver: DriverState;
   store: AppStore;
+  sessionId: string;
 }
 
 const STATUS_LABELS: Record<DriverState["status"], string> = {
@@ -66,7 +67,7 @@ function TokenList({ tokens, onChange }: { tokens: string[]; onChange: (tokens: 
   );
 }
 
-export function DriverPanel({ idx, driver, store }: Props) {
+export function DriverPanel({ idx, driver, store, sessionId }: Props) {
   const [savePresetName, setSavePresetName] = useState("");
   const [showSaveForm, setShowSaveForm] = useState(false);
 
@@ -95,7 +96,7 @@ export function DriverPanel({ idx, driver, store }: Props) {
     };
     const updated = [...store.presets, preset];
     store.setPresets(updated);
-    window.api.savePresets(updated);
+    window.api.savePresets(sessionId, updated);
     setSavePresetName("");
     setShowSaveForm(false);
   }

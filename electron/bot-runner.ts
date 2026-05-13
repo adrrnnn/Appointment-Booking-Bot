@@ -1,18 +1,18 @@
 import { BrowserWindow } from "electron";
-import { runOrchestrator, type BotConfig, type BotEventCallback } from "./engine-bridge";
+import { runOrchestrator, stopSession, stopAll, type BotConfig } from "./engine-bridge";
 
 export class BotRunner {
   private win: BrowserWindow;
-  private abortController: AbortController | null = null;
-  private running = false;
+  private running = new Set<string>();
 
   constructor(win: BrowserWindow) {
     this.win = win;
   }
 
-  private emit(type: string, message: string, driverIdx?: number, data?: Record<string, unknown>): void {
+  private emit(sessionId: string, type: string, message: string, driverIdx?: number, data?: Record<string, unknown>): void {
     if (this.win.isDestroyed()) return;
     this.win.webContents.send("bot:event", {
+      sessionId,
       type,
       message,
       driverIdx,
@@ -21,28 +21,29 @@ export class BotRunner {
     });
   }
 
-  async start(config: BotConfig): Promise<void> {
-    if (this.running) return;
-    this.running = true;
-    this.abortController = new AbortController();
-
-    const onEvent: BotEventCallback = (type, message, driverIdx, data) => {
-      this.emit(type, message, driverIdx, data);
-    };
+  async start(sessionId: string, config: BotConfig): Promise<void> {
+    if (this.running.has(sessionId)) return;
+    this.running.add(sessionId);
 
     try {
-      await runOrchestrator(config, this.abortController.signal, onEvent);
+      await runOrchestrator(sessionId, config, (sid, type, message, driverIdx, data) => {
+        this.emit(sid, type, message, driverIdx, data);
+      });
     } catch (err) {
-      this.emit("error", (err as Error).message);
+      this.emit(sessionId, "error", (err as Error).message);
     } finally {
-      this.running = false;
-      this.abortController = null;
-      this.emit("stopped", "Bot stopped.");
+      this.running.delete(sessionId);
     }
   }
 
-  stop(): void {
-    this.abortController?.abort();
+  stop(sessionId: string): void {
+    stopSession(sessionId);
+    this.running.delete(sessionId);
+  }
+
+  stopAll(): void {
+    stopAll();
+    this.running.clear();
   }
 
   async validateToken(token: string): Promise<{ valid: boolean; message: string }> {

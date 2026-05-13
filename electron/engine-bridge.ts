@@ -4,6 +4,7 @@ import { is } from "@electron-toolkit/utils";
 
 export type BotEventType = "log" | "status" | "booked" | "failed" | "stopped" | "error" | "ratelimit";
 export type BotEventCallback = (
+  sessionId: string,
   type: BotEventType,
   message: string,
   driverIdx?: number,
@@ -49,13 +50,23 @@ function classifyLine(line: string): BotEventType {
   return "log";
 }
 
-let childProcess: Electron.UtilityProcess | null = null;
+// Map of sessionId -> running child process
+const processes = new Map<string, Electron.UtilityProcess>();
+
+// Map of sessionId -> AbortController for stopping
+const abortControllers = new Map<string, AbortController>();
 
 export async function runOrchestrator(
+  sessionId: string,
   config: BotConfig,
-  signal: AbortSignal,
   onEvent: BotEventCallback,
 ): Promise<void> {
+  // Stop any existing process for this session first
+  stopSession(sessionId);
+
+  const controller = new AbortController();
+  abortControllers.set(sessionId, controller);
+
   return new Promise((resolve, reject) => {
     const botDir = is.dev
       ? join(__dirname, "../../bot")
@@ -70,35 +81,58 @@ export async function runOrchestrator(
     env["BOT_UI_MODE"] = "1";
     env["BOT_CONFIG"] = JSON.stringify(config);
 
-    childProcess = utilityProcess.fork(botScript, [], {
+    const child = utilityProcess.fork(botScript, [], {
       env,
       cwd: botDir,
       stdio: "pipe",
     });
 
-    childProcess.stdout?.on("data", (data: Buffer) => {
+    processes.set(sessionId, child);
+
+    child.stdout?.on("data", (data: Buffer) => {
       const lines = data.toString().split("\n").filter(Boolean);
       for (const line of lines) {
         const clean = stripAnsi(line);
         if (!clean) continue;
         const type = classifyLine(clean);
-        onEvent(type, clean);
+        onEvent(sessionId, type, clean);
       }
     });
 
-    childProcess.stderr?.on("data", (data: Buffer) => {
+    child.stderr?.on("data", (data: Buffer) => {
       const clean = stripAnsi(data.toString().trim());
-      if (clean) onEvent("error", clean);
+      if (clean) onEvent(sessionId, "error", clean);
     });
 
-    childProcess.on("exit", (code) => {
-      childProcess = null;
-      if (code === 0 || signal.aborted) resolve();
+    child.on("exit", (code) => {
+      processes.delete(sessionId);
+      abortControllers.delete(sessionId);
+      onEvent(sessionId, "stopped", "Bot stopped.");
+      if (code === 0 || controller.signal.aborted) resolve();
       else reject(new Error(`Bot exited with code ${code}`));
     });
 
-    signal.addEventListener("abort", () => {
-      childProcess?.kill();
+    controller.signal.addEventListener("abort", () => {
+      child.kill();
     });
   });
+}
+
+export function stopSession(sessionId: string): void {
+  const controller = abortControllers.get(sessionId);
+  if (controller) {
+    controller.abort();
+  }
+  const child = processes.get(sessionId);
+  if (child) {
+    child.kill();
+    processes.delete(sessionId);
+    abortControllers.delete(sessionId);
+  }
+}
+
+export function stopAll(): void {
+  for (const sessionId of Array.from(processes.keys())) {
+    stopSession(sessionId);
+  }
 }

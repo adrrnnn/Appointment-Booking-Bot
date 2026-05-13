@@ -62,21 +62,27 @@ app.whenReady().then(() => {
 });
 
 app.on("window-all-closed", () => {
-  botRunner?.stop();
+  botRunner?.stopAll();
   closeDb();
   if (process.platform !== "darwin") app.quit();
 });
 
 function setupIpcHandlers(): void {
-  // Presets
-  ipcMain.handle("presets:load", () => loadPresets());
-  ipcMain.handle("presets:save", (_, presets) => { savePresets(presets); return true; });
+  // Presets - session-scoped
+  ipcMain.handle("presets:load", (_, sessionId: string) => loadPresets(sessionId));
+  ipcMain.handle("presets:save", (_, sessionId: string, presets: unknown) => {
+    savePresets(sessionId, presets as unknown[]);
+    return true;
+  });
 
-  // Scheduled tasks
-  ipcMain.handle("schedule:load", () => loadScheduledTasks());
-  ipcMain.handle("schedule:save", (_, tasks) => { saveScheduledTasks(tasks); return true; });
+  // Scheduled tasks - session-scoped
+  ipcMain.handle("schedule:load", (_, sessionId: string) => loadScheduledTasks(sessionId));
+  ipcMain.handle("schedule:save", (_, sessionId: string, tasks: unknown) => {
+    saveScheduledTasks(sessionId, tasks as unknown[]);
+    return true;
+  });
 
-  // Title bar theme
+  // Title bar theme - global
   ipcMain.handle("titlebar:theme", (_, theme: "dark" | "light") => {
     const win = BrowserWindow.getAllWindows()[0];
     if (!win) return;
@@ -87,8 +93,10 @@ function setupIpcHandlers(): void {
     }
   });
 
-  // Bot control
-  ipcMain.handle("bot:start", (_, config) => botRunner?.start(config));
-  ipcMain.handle("bot:stop", () => botRunner?.stop());
-  ipcMain.handle("bot:validate-token", (_, token) => botRunner?.validateToken(token));
+  // Bot control - session-scoped
+  ipcMain.handle("bot:start", (_, sessionId: string, config: unknown) =>
+    botRunner?.start(sessionId, config as Parameters<BotRunner["start"]>[1]),
+  );
+  ipcMain.handle("bot:stop", (_, sessionId: string) => botRunner?.stop(sessionId));
+  ipcMain.handle("bot:validate-token", (_, token: string) => botRunner?.validateToken(token));
 }

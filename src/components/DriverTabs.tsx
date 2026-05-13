@@ -4,6 +4,7 @@ import { DriverPanel } from "./DriverPanel";
 
 interface Props {
   store: AppStore;
+  sessionId: string;
 }
 
 const STATUS_DOT_CLASS: Record<string, string> = {
@@ -16,7 +17,7 @@ const STATUS_DOT_CLASS: Record<string, string> = {
   failed: "text-red-400",
 };
 
-export function DriverTabs({ store }: Props) {
+export function DriverTabs({ store, sessionId }: Props) {
   const [activeTab, setActiveTab] = useState(0);
 
   function handleRemove(idx: number) {
@@ -87,6 +88,7 @@ export function DriverTabs({ store }: Props) {
             idx={safeActive}
             driver={store.drivers[safeActive]}
             store={store}
+            sessionId={sessionId}
           />
         )}
       </div>

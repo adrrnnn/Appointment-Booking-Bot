@@ -45,6 +45,7 @@ export interface ScheduledTask {
 export type BotEventType = "log" | "status" | "booked" | "failed" | "stopped" | "error" | "ratelimit";
 
 export interface BotEvent {
+  sessionId: string;
   type: BotEventType;
   driverIdx?: number;
   message: string;

@@ -10,9 +10,11 @@ interface Callbacks {
   onStartTask: (task: ScheduledTask, preset: DriverPreset) => void;
 }
 
-export function useScheduleTimer(store: AppStore, { onPromptTokens, onStartTask }: Callbacks): void {
+export function useScheduleTimer(store: AppStore, { onPromptTokens, onStartTask }: Callbacks, sessionId: string): void {
   const storeRef = useRef(store);
   storeRef.current = store;
+  const sessionIdRef = useRef(sessionId);
+  sessionIdRef.current = sessionId;
 
   useEffect(() => {
     function tick() {
@@ -59,11 +61,11 @@ export function useScheduleTimer(store: AppStore, { onPromptTokens, onStartTask 
         t.id === id ? { ...t, status } : t,
       );
       storeRef.current.setScheduledTasks(updated);
-      window.api.saveSchedule(updated);
+      window.api.saveSchedule(sessionIdRef.current, updated);
     }
 
     const interval = setInterval(tick, CHECK_INTERVAL_MS);
-    tick(); // run immediately on mount
+    tick();
     return () => clearInterval(interval);
   }, []);
 }

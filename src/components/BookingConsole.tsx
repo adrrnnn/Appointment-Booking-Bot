@@ -4,6 +4,7 @@ import type { BotEvent } from "@/types";
 
 interface Props {
   store: AppStore;
+  sessionId: string;
 }
 
 const LOG_COLOR: Record<BotEvent["type"], string> = {
@@ -34,7 +35,7 @@ function formatTs(ts: number): string {
   return `${h}:${m}:${s}`;
 }
 
-export function BookingConsole({ store }: Props) {
+export function BookingConsole({ store, sessionId }: Props) {
   const logRef = useRef<HTMLDivElement>(null);
   const autoScrollRef = useRef(true);
 
@@ -71,7 +72,7 @@ export function BookingConsole({ store }: Props) {
     store.clearLogs();
 
     try {
-      await window.api.botStart({
+      await window.api.botStart(sessionId, {
         searchToken: store.searchToken.trim(),
         port_code: store.portCode,
         drivers,
@@ -82,7 +83,7 @@ export function BookingConsole({ store }: Props) {
   }
 
   async function handleStop() {
-    await window.api.botStop();
+    await window.api.botStop(sessionId);
     store.setBotRunning(false);
   }
 

@@ -4,6 +4,7 @@ import type { ScheduledTask } from "@/types";
 
 interface Props {
   store: AppStore;
+  sessionId: string;
   onForceStart: (task: ScheduledTask) => void;
 }
 
@@ -31,7 +32,7 @@ function formatDate(ts: number): string {
   });
 }
 
-export function SchedulingArea({ store, onForceStart }: Props) {
+export function SchedulingArea({ store, sessionId, onForceStart }: Props) {
   const [selectedPresetId, setSelectedPresetId] = useState("");
   const [selectedDriverIdx, setSelectedDriverIdx] = useState(0);
   const [scheduledFor, setScheduledFor] = useState("");
@@ -56,20 +57,20 @@ export function SchedulingArea({ store, onForceStart }: Props) {
     };
     const updated = [...store.scheduledTasks, task];
     store.setScheduledTasks(updated);
-    window.api.saveSchedule(updated);
+    window.api.saveSchedule(sessionId, updated);
     setScheduledFor("");
   }
 
   function handleDeletePreset(id: string) {
     const updated = store.presets.filter((p) => p.id !== id);
     store.setPresets(updated);
-    window.api.savePresets(updated);
+    window.api.savePresets(sessionId, updated);
   }
 
   function handleRemoveTask(id: string) {
     const updated = store.scheduledTasks.filter((t) => t.id !== id);
     store.setScheduledTasks(updated);
-    window.api.saveSchedule(updated);
+    window.api.saveSchedule(sessionId, updated);
   }
 
   return (
@@ -101,7 +102,7 @@ export function SchedulingArea({ store, onForceStart }: Props) {
                     value={selectedDriverIdx}
                     onChange={(e) => setSelectedDriverIdx(Number(e.target.value))}
                   >
-                    {[0, 1, 2, 3].map((i) => (
+                    {store.drivers.map((_, i) => (
                       <option key={i} value={i}>Driver {i + 1}</option>
                     ))}
                   </select>
@@ -155,7 +156,7 @@ export function SchedulingArea({ store, onForceStart }: Props) {
                 value={selectedDriverIdx}
                 onChange={(e) => setSelectedDriverIdx(Number(e.target.value))}
               >
-                {[0, 1, 2, 3].map((i) => (
+                {store.drivers.map((_, i) => (
                   <option key={i} value={i}>Driver {i + 1}</option>
                 ))}
               </select>
