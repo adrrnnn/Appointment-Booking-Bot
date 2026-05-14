@@ -49,26 +49,41 @@ divider();
 // Overview
 h1("Overview");
 p("Appointment Booking Bot is a Windows desktop application that automates appointment booking on the Fasah platform. It searches for available slots and submits booking requests using your provided tokens.");
-p("Version 2.0 supports running up to 4 independent sessions from a single window, each with their own drivers, tokens, and bot processes running simultaneously.");
+p("Version 2.1 supports running up to 4 independent sessions from a single window, each with their own drivers, tokens, and bot processes running simultaneously. Sessions are automatically saved and restored between app launches.");
 divider();
 
 // Installation
 h1("Installation");
-step(1, "Download the installer: Appointment Bot Setup 1.0.0.exe from the provided link.");
+step(1, "Download the installer: Appointment Bot Setup 1.0.0.exe from the GitHub releases page.");
 step(2, "Run the installer. If Windows shows a SmartScreen warning, click More info then Run anyway.");
 step(3, "The app installs and opens automatically. A shortcut is added to the Start Menu.");
 doc.moveDown(0.5);
 divider();
 
+// First Launch & Session Management
+h1("First Launch & Session Management");
+p("When you first open the app, you'll see a session picker if you have previously saved sessions.");
+h2("Session Picker");
+bullet("Select which sessions to restore by checking the boxes next to their names.");
+bullet("Click \"Restore Selected\" to continue with your chosen sessions.");
+bullet("Click \"Start Fresh\" to begin with a new Session 1, clearing all previous data.");
+bullet("You can restore multiple sessions to continue where you left off.");
+divider();
+
 // Sessions
 h1("Sessions");
-p("Sessions let you run multiple independent bots at the same time. Each session is completely separate.");
-h2("Adding a Session");
-step(1, "Click the + button in the title bar to open a new session (up to 4).");
+p("Sessions let you run multiple independent bots at the same time. Each session is completely separate with its own configuration, drivers, and logs. Sessions are automatically saved when you make changes.");
+h2("Managing Sessions");
+step(1, "Click the + button in the title bar to add a new session (up to 4 total).");
 step(2, "Each session tab shows its name (Session 1, Session 2, etc.).");
-step(3, "Click a session tab to switch to it. The other sessions keep running in the background.");
-step(4, "Click the x on a session tab to close it.");
-doc.moveDown(0.5);
+step(3, "Click a session tab to switch to it. Other sessions continue running in the background.");
+step(4, "Click the x on a session tab to close it (only available when the bot is not running in that session).");
+step(5, "You cannot close the last remaining session - the app maintains at least one session.");
+doc.moveDown(0.3);
+h2("Closing Protection");
+bullet("Session tabs with running bots cannot be closed - you must stop the bot first.");
+bullet("When closing the app, you'll get a confirmation if any bots are running.");
+bullet("This prevents accidental loss of active booking attempts.");
 divider();
 
 // Search Token
@@ -88,7 +103,7 @@ h1("Driver Management");
 p("Each session supports up to 4 drivers. Each driver has their own booking token and vehicle details.");
 h2("Adding a Driver");
 step(1, "Go to the Drivers tab.");
-step(2, "Fill in the driver details: name, booking token(s), license number, declaration number, plate info, and countries.");
+step(2, "Fill in the driver details: name, booking token(s), license number, declaration number, vehicle details, and countries.");
 step(3, "To add another driver, click the + tab button at the top of the driver panel.");
 step(4, "To remove a driver, click the x next to their tab.");
 doc.moveDown(0.3);
@@ -103,7 +118,11 @@ h1("Running the Bot");
 step(1, "Go to the Console tab.");
 step(2, "Confirm the search token is valid (green indicator at the top).");
 step(3, "Click START. The bot begins searching for slots immediately.");
-step(4, "Live logs appear in real time showing each request and response.");
+step(4, "Live logs appear in real time showing each request and response with color coding:");
+step(null, "Blue: Status updates and search attempts");
+step(null, "Green: Successful bookings");
+step(null, "Red: Errors and failed attempts");
+step(null, "Yellow: Rate limiting notifications");
 step(5, "Click STOP at any time to halt the bot.");
 doc.moveDown(0.3);
 p("When a slot is found, the bot attempts to book it for all configured drivers simultaneously. Results appear in the Results tab.");
@@ -141,16 +160,24 @@ p("To run bots for different sets of drivers at the same time:");
 step(1, "Click + in the title bar to open a new session.");
 step(2, "Configure drivers and tokens in the new session independently.");
 step(3, "Click START in each session's Console tab.");
-p("All sessions run simultaneously. Each session has its own logs, results, and saved presets stored separately.");
+p("All sessions run simultaneously. Each session has its own logs, results, and saved presets stored separately. Your session configuration is automatically saved and will be restored when you reopen the app.");
+divider();
+
+// App Themes
+h1("App Themes");
+p("Click the sun/moon icon in the top bar to toggle between light and dark themes. Your preference is saved automatically.");
 divider();
 
 // Tips
 h1("Tips");
+bullet("Sessions are automatically saved - your configuration persists between app launches.");
+bullet("Use the session picker to restore only the sessions you need for your current work.");
 bullet("Tokens last approximately 6 hours. Always paste a fresh token at the start of each session.");
 bullet("Use presets to avoid re-entering driver details every time.");
 bullet("The bot retries continuously until a slot is found or you stop it.");
 bullet("Each booking token can only book one appointment. Use multiple booking tokens per driver to increase success rate.");
 bullet("Run multiple sessions to cover more drivers simultaneously.");
+bullet("You cannot close session tabs or quit the app while bots are running - this protects against accidental interruption of booking attempts.");
 
 doc.end();
 console.log("PDF written to: " + OUT);

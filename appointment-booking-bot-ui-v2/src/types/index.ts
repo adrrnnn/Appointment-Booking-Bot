@@ -13,7 +13,6 @@ export interface DriverConfig {
   vehicleSequenceNumber: string;
   chassisNo: string;
   declaration_number: string;
-  plateNo: string;
   hourPrefs: HourPrefs;
 }
 

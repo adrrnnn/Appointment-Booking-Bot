@@ -8,6 +8,7 @@ import { BookingConsole } from "./BookingConsole";
 import { OutputArea } from "./OutputArea";
 import { TokenRefreshModal } from "./TokenRefreshModal";
 import type { BotEvent, ScheduledTask, DriverPreset } from "@/types";
+import { driverWithBookingTokens, normalizeDriverPreset } from "@/utils/driverConfig";
 
 const TABS = ["Drivers", "Scheduling", "Console", "Results"] as const;
 type Tab = (typeof TABS)[number];
@@ -31,7 +32,7 @@ export function SessionContainer({ sessionId, isActive, theme, onToggleTheme, on
     },
     onStartTask: (task, preset) => {
       if (!task.freshSearchToken || !task.freshBookingTokens?.length) return;
-      const driver = { ...preset.driver, bookingTokens: task.freshBookingTokens };
+      const driver = driverWithBookingTokens(preset.driver, task.freshBookingTokens);
       store.setBotRunning(true);
       store.clearLogs();
       setTab("Console");
@@ -49,7 +50,9 @@ export function SessionContainer({ sessionId, isActive, theme, onToggleTheme, on
 
   // Load persisted data on mount
   useEffect(() => {
-    window.api.loadPresets(sessionId).then(store.setPresets);
+    window.api.loadPresets(sessionId).then((presets) =>
+      store.setPresets(Array.isArray(presets) ? presets.map(normalizeDriverPreset) : []),
+    );
     window.api.loadSchedule(sessionId).then(store.setScheduledTasks);
   }, [sessionId]);
 
@@ -127,7 +130,7 @@ export function SessionContainer({ sessionId, isActive, theme, onToggleTheme, on
     );
     store.setScheduledTasks(updated);
     window.api.saveSchedule(sessionId, updated);
-    const driver = { ...preset.driver, bookingTokens: task.freshBookingTokens };
+    const driver = driverWithBookingTokens(preset.driver, task.freshBookingTokens);
     store.setBotRunning(true);
     store.clearLogs();
     setTab("Console");

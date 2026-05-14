@@ -24,12 +24,33 @@ export function TokenRefreshModal({ task, preset, onConfirm, onDismiss }: Props)
   const [bookingInput, setBookingInput] = useState("");
   const [bookingTokens, setBookingTokens] = useState<string[]>([]);
   const [showSearch, setShowSearch] = useState(false);
+  const [bookingValidateMsg, setBookingValidateMsg] = useState<string | null>(null);
+  const [bookingValidateError, setBookingValidateError] = useState(false);
+  const [bookingValidating, setBookingValidating] = useState(false);
+  const [validatedBookingDraft, setValidatedBookingDraft] = useState<string | null>(null);
+
+  const bookingTrim = bookingInput.trim();
+  const canAddBooking =
+    bookingTrim.length > 0 &&
+    validatedBookingDraft !== null &&
+    validatedBookingDraft === bookingTrim &&
+    !bookingTokens.some((t) => t.trim() === bookingTrim);
+
+  function onBookingInputChange(raw: string) {
+    setBookingInput(raw);
+    const t = raw.trim();
+    if (validatedBookingDraft !== null && t !== validatedBookingDraft) {
+      setValidatedBookingDraft(null);
+    }
+  }
 
   function addBookingToken() {
-    const t = bookingInput.trim();
-    if (!t || bookingTokens.includes(t)) return;
-    setBookingTokens((prev) => [...prev, t]);
+    if (!canAddBooking) return;
+    setBookingTokens((prev) => [...prev, bookingTrim]);
     setBookingInput("");
+    setValidatedBookingDraft(null);
+    setBookingValidateMsg(null);
+    setBookingValidateError(false);
   }
 
   function handleConfirm() {
@@ -92,33 +113,111 @@ export function TokenRefreshModal({ task, preset, onConfirm, onDismiss }: Props)
                 ({bookingTokens.length} added)
               </span>
             </label>
-            <div className="flex gap-2">
-              <input
-                type="password"
-                className="input-field flex-1 font-mono text-xs"
-                placeholder="Paste booking token and press Add..."
+            <div className="flex flex-col gap-2">
+              <textarea
+                className="input-field w-full font-mono text-xs min-h-[5rem] resize-y py-2"
+                placeholder="Paste booking token, Validate tokens, then Add"
                 value={bookingInput}
-                onChange={(e) => setBookingInput(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addBookingToken(); } }}
+                onChange={(e) => onBookingInputChange(e.target.value)}
                 spellCheck={false}
               />
-              <button
-                type="button"
-                className="btn-secondary text-xs px-3 flex-shrink-0"
-                onClick={addBookingToken}
-              >
-                Add
-              </button>
+              <div className="flex gap-2 flex-wrap">
+                <button
+                  type="button"
+                  className="btn-primary text-xs px-3 disabled:opacity-50"
+                  disabled={bookingValidating}
+                  onClick={async () => {
+                    const d = bookingInput.trim();
+                    const listChecks = bookingTokens.map((tok) => tok.trim()).filter(Boolean);
+
+                    if (d.length === 0 && listChecks.length === 0) {
+                      setBookingValidateMsg("Paste a token first.");
+                      setBookingValidateError(true);
+                      setValidatedBookingDraft(null);
+                      return;
+                    }
+
+                    setBookingValidating(true);
+                    setBookingValidateMsg(null);
+                    try {
+                      const draftRes = d.length > 0 ? await window.api.validateToken(d) : { valid: true };
+                      const listRes =
+                        listChecks.length > 0
+                          ? await Promise.all(listChecks.map((tok) => window.api.validateToken(tok)))
+                          : [];
+
+                      const listInvalid = listRes.filter((r) => !r.valid).length;
+                      const draftInvalid = d.length > 0 ? !draftRes.valid : false;
+                      const totalParts = (d.length > 0 ? 1 : 0) + listChecks.length;
+                      const invalidCount = (draftInvalid ? 1 : 0) + listInvalid;
+
+                      if (invalidCount === 0 && totalParts > 0) {
+                        setBookingValidateError(false);
+                        if (d.length > 0) {
+                          setValidatedBookingDraft(d);
+                          setBookingValidateMsg(
+                            listChecks.length > 0
+                              ? `Draft and ${listChecks.length} saved token(s) accepted.`
+                              : "Token accepted. You can add it now.",
+                          );
+                        } else {
+                          setValidatedBookingDraft(null);
+                          setBookingValidateMsg(`All ${listChecks.length} saved token(s) accepted.`);
+                        }
+                      } else {
+                        setValidatedBookingDraft(null);
+                        setBookingValidateError(true);
+                        setBookingValidateMsg(
+                          `${invalidCount} of ${totalParts} token(s) failed. Fix and validate again.`,
+                        );
+                      }
+                    } finally {
+                      setBookingValidating(false);
+                    }
+                  }}
+                >
+                  {bookingValidating ? "Validating…" : "Validate tokens"}
+                </button>
+                <button
+                  type="button"
+                  className="btn-secondary text-xs px-3 disabled:opacity-40 disabled:cursor-not-allowed"
+                  disabled={!canAddBooking}
+                  onClick={addBookingToken}
+                >
+                  Add
+                </button>
+              </div>
+              {bookingValidateMsg && (
+                <p
+                  className={`text-xs ${
+                    bookingValidateError ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"
+                  }`}
+                >
+                  {bookingValidateMsg}
+                </p>
+              )}
             </div>
             {bookingTokens.length > 0 && (
-              <div className="mt-2 space-y-1">
+              <div className="mt-2 space-y-2">
                 {bookingTokens.map((t, i) => (
-                  <div key={i} className="flex items-center gap-2 bg-muted rounded px-2 py-1 text-xs font-mono">
-                    <span className="text-muted-foreground">Token {i + 1}</span>
-                    <span className="flex-1 truncate">{"*".repeat(12)}{t.slice(-6)}</span>
+                  <div key={i} className="flex gap-2 items-start">
+                    <div className="flex-1 min-w-0">
+                      <span className="text-xs text-muted-foreground mb-0.5 block">Token {i + 1}</span>
+                      <textarea
+                        className="input-field w-full font-mono text-xs min-h-[4.5rem] resize-y py-2"
+                        value={t}
+                        onChange={(e) => {
+                          const next = [...bookingTokens];
+                          next[i] = e.target.value;
+                          setBookingTokens(next);
+                          setValidatedBookingDraft(null);
+                        }}
+                        spellCheck={false}
+                      />
+                    </div>
                     <button
                       type="button"
-                      className="text-muted-foreground hover:text-red-400 transition-colors"
+                      className="btn-ghost text-xs text-muted-foreground hover:text-red-400 mt-6 flex-shrink-0"
                       onClick={() => setBookingTokens((prev) => prev.filter((_, j) => j !== i))}
                     >
                       Remove

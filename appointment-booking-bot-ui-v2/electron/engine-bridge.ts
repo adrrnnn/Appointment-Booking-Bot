@@ -20,7 +20,6 @@ export interface DriverConfig {
   vehicleSequenceNumber: string;
   chassisNo: string;
   declaration_number: string;
-  plateNo: string;
   hourPrefs: {
     tier1: number | null;
     tier2Start: number | null;

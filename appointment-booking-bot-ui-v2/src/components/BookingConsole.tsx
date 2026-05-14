@@ -62,7 +62,6 @@ export function BookingConsole({ store, sessionId }: Props) {
         vehicleSequenceNumber: d.vehicleSequenceNumber,
         chassisNo: d.chassisNo,
         declaration_number: d.declaration_number,
-        plateNo: d.plateNo,
         hourPrefs: d.hourPrefs,
       }));
 

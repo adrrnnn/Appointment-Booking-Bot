@@ -78,9 +78,9 @@ export function CountrySelect({ value, onChange, placeholder = "Select country" 
                 </div>
                 {mostUsedFiltered.map((c) => (
                   <CountryOption
-                    key={c.code}
+                    key={c.apiValue}
                     country={c}
-                    selected={selected?.code === c.code}
+                    selected={value === c.apiValue}
                     onSelect={() => { onChange(c.apiValue, c.code); setOpen(false); setSearch(""); }}
                   />
                 ))}
@@ -93,9 +93,9 @@ export function CountrySelect({ value, onChange, placeholder = "Select country" 
             )}
             {restFiltered.map((c) => (
               <CountryOption
-                key={c.code}
+                key={c.apiValue}
                 country={c}
-                selected={selected?.code === c.code}
+                selected={value === c.apiValue}
                 onSelect={() => { onChange(c.apiValue, c.code); setOpen(false); setSearch(""); }}
               />
             ))}

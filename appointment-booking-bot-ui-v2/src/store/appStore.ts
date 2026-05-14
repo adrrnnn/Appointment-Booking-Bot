@@ -1,5 +1,6 @@
 import { useState, useCallback } from "react";
 import type { DriverState, DriverPreset, ScheduledTask, BotEvent, BookingResult } from "@/types";
+import { normalizeDriverConfig } from "@/utils/driverConfig";
 
 const EMPTY_DRIVER = (): DriverState => ({
   driverName: "",
@@ -10,7 +11,6 @@ const EMPTY_DRIVER = (): DriverState => ({
   vehicleSequenceNumber: "",
   chassisNo: "",
   declaration_number: "",
-  plateNo: "",
   hourPrefs: { tier1: null, tier2Start: null, tier2End: null },
   status: "idle",
   tokenValid: null,
@@ -56,8 +56,9 @@ export function useAppStore() {
   const clearLogs = useCallback(() => setLogs([]), []);
 
   const loadPreset = useCallback((preset: DriverPreset, driverIdx: number) => {
+    const driver = normalizeDriverConfig(preset.driver);
     setDrivers((prev) => prev.map((d, i) =>
-      i === driverIdx ? { ...d, ...preset.driver, status: "ready" } : d,
+      i === driverIdx ? { ...d, ...driver, status: "ready" } : d,
     ));
   }, []);
 

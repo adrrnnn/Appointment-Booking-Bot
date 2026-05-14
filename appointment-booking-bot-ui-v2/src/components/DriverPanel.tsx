@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { AppStore } from "@/store/appStore";
 import type { DriverState, DriverPreset } from "@/types";
+import { normalizeDriverConfig } from "@/utils/driverConfig";
 import { CountrySelect } from "./CountrySelect";
 
 interface Props {
@@ -21,41 +22,154 @@ const STATUS_LABELS: Record<DriverState["status"], string> = {
 };
 
 function TokenList({ tokens, onChange }: { tokens: string[]; onChange: (tokens: string[]) => void }) {
-  const [input, setInput] = useState("");
+  const [draft, setDraft] = useState("");
+  const [checking, setChecking] = useState(false);
+  const [validateMsg, setValidateMsg] = useState<string | null>(null);
+  const [validateError, setValidateError] = useState(false);
+  /** Trimmed draft that passed the last successful full validate; Add only when this equals current draft.trim() */
+  const [validatedDraft, setValidatedDraft] = useState<string | null>(null);
+
+  const draftTrim = draft.trim();
+  const canAdd =
+    draftTrim.length > 0 &&
+    validatedDraft !== null &&
+    validatedDraft === draftTrim &&
+    !tokens.some((t) => t.trim() === draftTrim);
+
+  function onDraftChange(raw: string) {
+    setDraft(raw);
+    const t = raw.trim();
+    if (validatedDraft !== null && t !== validatedDraft) {
+      setValidatedDraft(null);
+    }
+  }
 
   function add() {
-    const t = input.trim();
-    if (!t || tokens.includes(t)) return;
-    onChange([...tokens, t]);
-    setInput("");
+    if (!canAdd) return;
+    onChange([...tokens, draftTrim]);
+    setDraft("");
+    setValidatedDraft(null);
+    setValidateMsg(null);
+    setValidateError(false);
+  }
+
+  async function validateTokens() {
+    const d = draft.trim();
+    const listChecks = tokens.map((tok) => tok.trim()).filter(Boolean);
+
+    if (d.length === 0 && listChecks.length === 0) {
+      setValidateMsg("Paste a token above, or add tokens to the list first.");
+      setValidateError(true);
+      setValidatedDraft(null);
+      return;
+    }
+
+    setChecking(true);
+    setValidateMsg(null);
+    setValidateError(false);
+
+    try {
+      const draftRes = d.length > 0 ? await window.api.validateToken(d) : { valid: true };
+      const listRes =
+        listChecks.length > 0
+          ? await Promise.all(listChecks.map((tok) => window.api.validateToken(tok)))
+          : [];
+
+      const listInvalid = listRes.filter((r) => !r.valid).length;
+      const draftInvalid = d.length > 0 ? !draftRes.valid : false;
+      const totalParts = (d.length > 0 ? 1 : 0) + listChecks.length;
+      const invalidCount = (draftInvalid ? 1 : 0) + listInvalid;
+
+      if (invalidCount === 0 && totalParts > 0) {
+        setValidateMsg(
+          d.length > 0 && listChecks.length > 0
+            ? `Draft and ${listChecks.length} saved token(s) accepted by the server.`
+            : d.length > 0
+              ? "Token accepted. You can add it now."
+              : `All ${listChecks.length} saved token(s) accepted.`,
+        );
+        setValidateError(false);
+        if (d.length > 0) setValidatedDraft(d);
+        else setValidatedDraft(null);
+      } else {
+        setValidatedDraft(null);
+        setValidateMsg(
+          `${invalidCount} of ${totalParts} invalid or expired. Fix the token(s) and validate again.`,
+        );
+        setValidateError(true);
+      }
+    } finally {
+      setChecking(false);
+    }
   }
 
   return (
-    <div className="space-y-1.5">
-      <div className="flex gap-2">
-        <input
-          type="password"
-          className="input-field flex-1 font-mono text-xs"
-          placeholder="Paste booking token and press Add"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); add(); } }}
-          spellCheck={false}
-        />
-        <button type="button" className="btn-secondary text-xs px-3" onClick={add}>
-          Add
-        </button>
+    <div className="space-y-2">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+        <div className="flex-1 min-w-0">
+          <label className="label">Paste booking token</label>
+          <textarea
+            className="input-field w-full font-mono text-xs min-h-[5rem] resize-y py-2"
+            placeholder="Paste token, click Validate tokens, then Add"
+            value={draft}
+            onChange={(e) => onDraftChange(e.target.value)}
+            spellCheck={false}
+          />
+        </div>
+        <div className="flex gap-2 flex-shrink-0">
+          <button
+            type="button"
+            className="btn-primary text-xs px-3 h-9"
+            disabled={checking}
+            onClick={validateTokens}
+          >
+            {checking ? "Validating…" : "Validate tokens"}
+          </button>
+          <button
+            type="button"
+            className="btn-secondary text-xs px-3 h-9 disabled:opacity-40 disabled:cursor-not-allowed"
+            disabled={!canAdd}
+            onClick={add}
+          >
+            Add
+          </button>
+        </div>
       </div>
+      {validateMsg && (
+        <p
+          className={`text-xs ${
+            validateError ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"
+          }`}
+        >
+          {validateMsg}
+        </p>
+      )}
       {tokens.length > 0 && (
-        <div className="space-y-1">
+        <div className="space-y-2">
           {tokens.map((t, i) => (
-            <div key={i} className="flex items-center gap-2 bg-muted rounded px-2 py-1 text-xs font-mono">
-              <span className="text-muted-foreground">Token {i + 1}</span>
-              <span className="flex-1 truncate text-foreground">{"*".repeat(12)}{t.slice(-6)}</span>
+            <div key={i} className="flex gap-2 items-start">
+              <div className="flex-1 min-w-0">
+                <span className="text-xs text-muted-foreground mb-0.5 block">Token {i + 1}</span>
+                <textarea
+                  className="input-field w-full font-mono text-xs min-h-[4.5rem] resize-y py-2"
+                  value={t}
+                  onChange={(e) => {
+                    const next = [...tokens];
+                    next[i] = e.target.value;
+                    onChange(next);
+                    setValidatedDraft(null);
+                  }}
+                  spellCheck={false}
+                />
+              </div>
               <button
                 type="button"
-                className="text-muted-foreground hover:text-red-400 transition-colors text-xs"
-                onClick={() => onChange(tokens.filter((_, j) => j !== i))}
+                className="btn-ghost text-xs text-muted-foreground hover:text-red-400 mt-6 flex-shrink-0"
+                onClick={() => {
+                  onChange(tokens.filter((_, j) => j !== i));
+                  setValidateMsg(null);
+                  setValidateError(false);
+                }}
               >
                 Remove
               </button>
@@ -80,18 +194,7 @@ export function DriverPanel({ idx, driver, store, sessionId }: Props) {
     const preset: DriverPreset = {
       id: crypto.randomUUID(),
       name,
-      driver: {
-        driverName: driver.driverName,
-        bookingTokens: driver.bookingTokens,
-        licenseNo: driver.licenseNo,
-        plateCountry: driver.plateCountry,
-        residentCountry: driver.residentCountry,
-        vehicleSequenceNumber: driver.vehicleSequenceNumber,
-        chassisNo: driver.chassisNo,
-        declaration_number: driver.declaration_number,
-        plateNo: driver.plateNo,
-        hourPrefs: driver.hourPrefs,
-      },
+      driver: normalizeDriverConfig(driver),
       savedAt: Date.now(),
     };
     const updated = [...store.presets, preset];
@@ -139,7 +242,7 @@ export function DriverPanel({ idx, driver, store, sessionId }: Props) {
               driverName: "", bookingTokens: [], licenseNo: "",
               plateCountry: "SA", residentCountry: "SA",
               vehicleSequenceNumber: "", chassisNo: "",
-              declaration_number: "", plateNo: "",
+              declaration_number: "",
               hourPrefs: { tier1: null, tier2Start: null, tier2End: null },
               status: "idle", tokenValid: null,
             })}
@@ -167,74 +270,69 @@ export function DriverPanel({ idx, driver, store, sessionId }: Props) {
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="label">Display Name</label>
-          <input
-            className="input-field"
-            placeholder="John Doe"
-            value={driver.driverName}
-            onChange={(e) => update({ driverName: e.target.value })}
-          />
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-start">
+        <div className="space-y-3">
+          <div>
+            <label className="label">Display Name</label>
+            <input
+              className="input-field"
+              placeholder="John Doe"
+              value={driver.driverName}
+              onChange={(e) => update({ driverName: e.target.value })}
+            />
+          </div>
+          <div>
+            <label className="label">License Number</label>
+            <input
+              className="input-field"
+              placeholder="License number"
+              value={driver.licenseNo}
+              onChange={(e) => update({ licenseNo: e.target.value })}
+            />
+          </div>
+          <div>
+            <label className="label">Plate Country</label>
+            <CountrySelect
+              value={driver.plateCountry}
+              onChange={(apiValue) => update({ plateCountry: apiValue })}
+            />
+          </div>
         </div>
-        <div>
-          <label className="label">Declaration Number</label>
-          <input
-            className="input-field font-mono text-xs"
-            placeholder="Enter declaration number"
-            value={driver.declaration_number}
-            onChange={(e) => update({ declaration_number: e.target.value })}
-          />
-        </div>
-        <div>
-          <label className="label">License Number</label>
-          <input
-            className="input-field"
-            placeholder="License number"
-            value={driver.licenseNo}
-            onChange={(e) => update({ licenseNo: e.target.value })}
-          />
-        </div>
-        <div>
-          <label className="label">Plate Number</label>
-          <input
-            className="input-field"
-            placeholder="Plate number"
-            value={driver.plateNo}
-            onChange={(e) => update({ plateNo: e.target.value })}
-          />
-        </div>
-        <div>
-          <label className="label">Resident Country</label>
-          <CountrySelect
-            value={driver.residentCountry}
-            onChange={(apiValue) => update({ residentCountry: apiValue })}
-          />
-        </div>
-        <div>
-          <label className="label">Plate Country</label>
-          <CountrySelect
-            value={driver.plateCountry}
-            onChange={(apiValue) => update({ plateCountry: apiValue })}
-          />
-        </div>
-        <div>
-          <label className="label">Vehicle Serial Number</label>
-          <input
-            className="input-field"
-            placeholder="Vehicle serial number"
-            value={driver.vehicleSequenceNumber}
-            onChange={(e) => update({ vehicleSequenceNumber: e.target.value })}
-          />
-        </div>
-        <div>
-          <label className="label">Chassis Number</label>
-          <input
-            className="input-field"
-            placeholder="Chassis number"
-            value={driver.chassisNo}
-            onChange={(e) => update({ chassisNo: e.target.value })}
-          />
+        <div className="space-y-3">
+          <div>
+            <label className="label">Declaration Number</label>
+            <input
+              className="input-field font-mono text-xs"
+              placeholder="Enter declaration number"
+              value={driver.declaration_number}
+              onChange={(e) => update({ declaration_number: e.target.value })}
+            />
+          </div>
+          <div>
+            <label className="label">Resident Country</label>
+            <CountrySelect
+              value={driver.residentCountry}
+              onChange={(apiValue) => update({ residentCountry: apiValue })}
+            />
+          </div>
+          <div>
+            <label className="label">Vehicle Serial Number</label>
+            <input
+              className="input-field"
+              placeholder="Vehicle serial number"
+              value={driver.vehicleSequenceNumber}
+              onChange={(e) => update({ vehicleSequenceNumber: e.target.value })}
+            />
+          </div>
+          <div>
+            <label className="label">Chassis Number</label>
+            <input
+              className="input-field"
+              placeholder="Chassis number"
+              value={driver.chassisNo}
+              onChange={(e) => update({ chassisNo: e.target.value })}
+            />
+          </div>
         </div>
       </div>
 
