@@ -240,7 +240,7 @@ export function DriverPanel({ idx, driver, store, sessionId }: Props) {
             className="btn-ghost text-xs text-muted-foreground"
             onClick={() => store.updateDriver(idx, {
               driverName: "", bookingTokens: [], licenseNo: "",
-              plateCountry: "SA", residentCountry: "SA",
+              plateCountry: "", residentCountry: "",
               vehicleSequenceNumber: "", chassisNo: "",
               declaration_number: "",
               hourPrefs: { tier1: null, tier2Start: null, tier2End: null },
@@ -291,10 +291,10 @@ export function DriverPanel({ idx, driver, store, sessionId }: Props) {
             />
           </div>
           <div>
-            <label className="label">Plate Country</label>
+            <label className="label">Resident Country</label>
             <CountrySelect
-              value={driver.plateCountry}
-              onChange={(apiValue) => update({ plateCountry: apiValue })}
+              value={driver.residentCountry}
+              onChange={(apiValue) => update({ residentCountry: apiValue })}
             />
           </div>
         </div>
@@ -309,10 +309,10 @@ export function DriverPanel({ idx, driver, store, sessionId }: Props) {
             />
           </div>
           <div>
-            <label className="label">Resident Country</label>
+            <label className="label">Plate Country</label>
             <CountrySelect
-              value={driver.residentCountry}
-              onChange={(apiValue) => update({ residentCountry: apiValue })}
+              value={driver.plateCountry}
+              onChange={(apiValue) => update({ plateCountry: apiValue })}
             />
           </div>
           <div>

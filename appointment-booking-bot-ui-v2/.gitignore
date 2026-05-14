@@ -7,3 +7,13 @@ bot/node_modules/
 .env
 bot.log
 *.db
+
+# Accidental `tsc` emit or duplicate JSX beside canonical .ts/.tsx
+src/**/*.js
+src/**/*.jsx
+src/**/*.d.ts
+!/src/types/electron.d.ts
+electron/**/*.js
+electron/**/*.d.ts
+electron.vite.config.js
+electron.vite.config.d.ts

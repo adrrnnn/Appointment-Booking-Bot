@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, type Dispatch, type MutableRefObject, type SetStateAction } from "react";
 import { useAppStore } from "@/store/appStore";
-import { useScheduleTimer } from "@/store/useScheduleTimer";
+import { useScheduleTimer, type ScheduleTimerCallbacks } from "@/store/useScheduleTimer";
 import { SearchTokenSection } from "./SearchTokenSection";
 import { DriverTabs } from "./DriverTabs";
 import { SchedulingArea } from "./SchedulingArea";
@@ -21,34 +21,68 @@ interface Props {
   onBotRunningChange?: (sessionId: string, running: boolean) => void;
 }
 
+function enqueuePair(
+  ref: MutableRefObject<{ task: ScheduledTask; preset: DriverPreset }[]>,
+  setCur: Dispatch<SetStateAction<{ task: ScheduledTask; preset: DriverPreset } | null>>,
+  task: ScheduledTask,
+  preset: DriverPreset,
+) {
+  setCur((cur) => {
+    if (cur) {
+      ref.current.push({ task, preset });
+      return cur;
+    }
+    return { task, preset };
+  });
+}
+
 export function SessionContainer({ sessionId, isActive, theme, onToggleTheme, onBotRunningChange }: Props) {
   const store = useAppStore();
   const [tab, setTab] = useState<Tab>("Drivers");
   const [tokenRefreshTask, setTokenRefreshTask] = useState<{ task: ScheduledTask; preset: DriverPreset } | null>(null);
+  const tokenQueueRef = useRef<{ task: ScheduledTask; preset: DriverPreset }[]>([]);
+  const startedScheduledTaskIdsRef = useRef<Set<string>>(new Set());
+  const scheduleCallbacksRef = useRef<ScheduleTimerCallbacks>({
+    onPromptTokens: () => {},
+    onStartTask: () => {},
+  });
 
-  useScheduleTimer(store, {
+  function popNextTokenModal() {
+    setTokenRefreshTask(() => {
+      const next = tokenQueueRef.current.shift();
+      return next ?? null;
+    });
+  }
+
+  scheduleCallbacksRef.current = {
     onPromptTokens: (task, preset) => {
-      setTokenRefreshTask({ task, preset });
+      enqueuePair(tokenQueueRef, setTokenRefreshTask, task, preset);
     },
     onStartTask: (task, preset) => {
+      if (startedScheduledTaskIdsRef.current.has(task.id)) return;
       if (!task.freshSearchToken || !task.freshBookingTokens?.length) return;
+      startedScheduledTaskIdsRef.current.add(task.id);
       const driver = driverWithBookingTokens(preset.driver, task.freshBookingTokens);
       store.setBotRunning(true);
       store.clearLogs();
       setTab("Console");
-      window.api.botStart(sessionId, {
+      void window.api.botStart(sessionId, {
         searchToken: task.freshSearchToken,
         port_code: store.portCode,
         drivers: [driver],
-      }).finally(() => store.setBotRunning(false));
+      }).finally(() => {
+        startedScheduledTaskIdsRef.current.delete(task.id);
+        store.setBotRunning(false);
+      });
     },
-  }, sessionId);
+  };
+
+  useScheduleTimer(store, scheduleCallbacksRef, sessionId);
 
   useEffect(() => {
     onBotRunningChange?.(sessionId, store.botRunning);
   }, [sessionId, store.botRunning, onBotRunningChange]);
 
-  // Load persisted data on mount
   useEffect(() => {
     window.api.loadPresets(sessionId).then((presets) =>
       store.setPresets(Array.isArray(presets) ? presets.map(normalizeDriverPreset) : []),
@@ -56,7 +90,6 @@ export function SessionContainer({ sessionId, isActive, theme, onToggleTheme, on
     window.api.loadSchedule(sessionId).then(store.setScheduledTasks);
   }, [sessionId]);
 
-  // Subscribe to bot events for this session only
   useEffect(() => {
     const unsub = window.api.onBotEvent((event: BotEvent & { sessionId: string }) => {
       if (event.sessionId !== sessionId) return;
@@ -99,10 +132,6 @@ export function SessionContainer({ sessionId, isActive, theme, onToggleTheme, on
           }
         });
       }
-
-      if (event.type === "status" || event.type === "log") {
-        setTab("Console");
-      }
     });
     return unsub;
   }, [store, sessionId]);
@@ -113,16 +142,59 @@ export function SessionContainer({ sessionId, isActive, theme, onToggleTheme, on
         ? { ...t, status: "tokens_ready" as const, freshSearchToken: searchToken, freshBookingTokens: bookingTokens }
         : t,
     );
+    const taskRow = updated.find((t) => t.id === taskId);
     store.setScheduledTasks(updated);
     window.api.saveSchedule(sessionId, updated);
-    setTokenRefreshTask(null);
+    popNextTokenModal();
+
+    if (
+      taskRow &&
+      taskRow.freshSearchToken &&
+      taskRow.freshBookingTokens?.length &&
+      taskRow.scheduledFor <= Date.now()
+    ) {
+      if (startedScheduledTaskIdsRef.current.has(taskId)) return;
+      startedScheduledTaskIdsRef.current.add(taskId);
+      const preset = store.presets.find((p) => p.id === taskRow.presetId);
+      if (!preset) {
+        startedScheduledTaskIdsRef.current.delete(taskId);
+        return;
+      }
+      const withRunning = updated.map((t) =>
+        t.id === taskId ? { ...t, status: "running" as const } : t,
+      );
+      store.setScheduledTasks(withRunning);
+      window.api.saveSchedule(sessionId, withRunning);
+      const driver = driverWithBookingTokens(preset.driver, taskRow.freshBookingTokens);
+      store.setBotRunning(true);
+      store.clearLogs();
+      setTab("Console");
+      void window.api.botStart(sessionId, {
+        searchToken: taskRow.freshSearchToken,
+        port_code: store.portCode,
+        drivers: [driver],
+      }).finally(() => {
+        startedScheduledTaskIdsRef.current.delete(taskId);
+        store.setBotRunning(false);
+      });
+    }
+  }
+
+  function handleUseSavedTokensFromModal(): string | null {
+    if (!tokenRefreshTask) return "No active task.";
+    const search = store.searchToken.trim();
+    const booking = tokenRefreshTask.preset.driver.bookingTokens.map((t) => t.trim()).filter(Boolean);
+    if (!search) return "Paste or validate a search token in the header first.";
+    if (booking.length === 0) return "This preset has no booking tokens. Add them on the preset or enter new tokens below.";
+    handleTokenRefreshConfirm(tokenRefreshTask.task.id, search, booking);
+    return null;
   }
 
   function handleForceStart(task: ScheduledTask) {
     const preset = store.presets.find((p) => p.id === task.presetId);
     if (!preset) return;
     if (!task.freshSearchToken || !task.freshBookingTokens?.length) {
-      setTokenRefreshTask({ task, preset });
+      enqueuePair(tokenQueueRef, setTokenRefreshTask, task, preset);
       return;
     }
     const updated = store.scheduledTasks.map((t) =>
@@ -134,7 +206,7 @@ export function SessionContainer({ sessionId, isActive, theme, onToggleTheme, on
     store.setBotRunning(true);
     store.clearLogs();
     setTab("Console");
-    window.api.botStart(sessionId, {
+    void window.api.botStart(sessionId, {
       searchToken: task.freshSearchToken,
       port_code: store.portCode,
       drivers: [driver],
@@ -148,17 +220,15 @@ export function SessionContainer({ sessionId, isActive, theme, onToggleTheme, on
     );
     store.setScheduledTasks(updated);
     window.api.saveSchedule(sessionId, updated);
-    setTokenRefreshTask(null);
+    popNextTokenModal();
   }
 
   return (
     <div className="flex flex-col flex-1 overflow-hidden" style={{ display: isActive ? "flex" : "none" }}>
-      {/* Search token - always visible */}
       <div className="px-4 pt-3 pb-2 flex-shrink-0">
         <SearchTokenSection store={store} />
       </div>
 
-      {/* Inner tab bar */}
       <div className="px-4 pb-2 flex-shrink-0 flex items-center gap-1">
         {TABS.map((t) => (
           <button
@@ -209,7 +279,6 @@ export function SessionContainer({ sessionId, isActive, theme, onToggleTheme, on
         </div>
       </div>
 
-      {/* Main content */}
       <div className="flex-1 overflow-hidden px-4 pb-4">
         {tab === "Drivers" && <DriverTabs store={store} sessionId={sessionId} />}
         {tab === "Scheduling" && (
@@ -231,6 +300,7 @@ export function SessionContainer({ sessionId, isActive, theme, onToggleTheme, on
           preset={tokenRefreshTask.preset}
           onConfirm={handleTokenRefreshConfirm}
           onDismiss={handleTokenRefreshDismiss}
+          onUseSavedTokens={handleUseSavedTokensFromModal}
         />
       )}
     </div>

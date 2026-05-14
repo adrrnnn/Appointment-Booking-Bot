@@ -4,6 +4,8 @@ import { runOrchestrator, stopSession, stopAll, type BotConfig } from "./engine-
 export class BotRunner {
   private win: BrowserWindow;
   private running = new Set<string>();
+  /** Serialize botStart per session so overlapping runs queue */
+  private chains = new Map<string, Promise<void>>();
 
   constructor(win: BrowserWindow) {
     this.win = win;
@@ -22,26 +24,34 @@ export class BotRunner {
   }
 
   async start(sessionId: string, config: BotConfig): Promise<void> {
-    if (this.running.has(sessionId)) return;
-    this.running.add(sessionId);
+    const run = async (): Promise<void> => {
+      this.running.add(sessionId);
+      try {
+        await runOrchestrator(sessionId, config, (sid, type, message, driverIdx, data) => {
+          this.emit(sid, type, message, driverIdx, data);
+        });
+      } catch (err) {
+        this.emit(sessionId, "error", (err as Error).message);
+      } finally {
+        this.running.delete(sessionId);
+      }
+    };
 
-    try {
-      await runOrchestrator(sessionId, config, (sid, type, message, driverIdx, data) => {
-        this.emit(sid, type, message, driverIdx, data);
-      });
-    } catch (err) {
-      this.emit(sessionId, "error", (err as Error).message);
-    } finally {
-      this.running.delete(sessionId);
-    }
+    // Recover from a rejected chain so a prior failure does not drop queued runs
+    const prev = (this.chains.get(sessionId) ?? Promise.resolve()).catch(() => {});
+    const next = prev.then(run);
+    this.chains.set(sessionId, next);
+    await next;
   }
 
   stop(sessionId: string): void {
+    this.chains.delete(sessionId);
     stopSession(sessionId);
     this.running.delete(sessionId);
   }
 
   stopAll(): void {
+    this.chains.clear();
     stopAll();
     this.running.clear();
   }

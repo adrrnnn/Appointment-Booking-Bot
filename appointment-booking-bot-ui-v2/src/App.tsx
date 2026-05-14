@@ -83,6 +83,7 @@ export function App() {
       return;
     }
     if (!window.confirm(`Close ${name}? Unsaved driver info will be lost.`)) return;
+    if (!window.confirm(`Last check: close session tab "${name}"? This cannot be undone.`)) return;
     setSessionBotRunning((prev) => {
       const next = { ...prev };
       delete next[id];

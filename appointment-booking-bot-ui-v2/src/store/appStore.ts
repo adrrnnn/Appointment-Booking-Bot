@@ -6,8 +6,8 @@ const EMPTY_DRIVER = (): DriverState => ({
   driverName: "",
   bookingTokens: [],
   licenseNo: "",
-  plateCountry: "SA",
-  residentCountry: "SA",
+  plateCountry: "",
+  residentCountry: "",
   vehicleSequenceNumber: "",
   chassisNo: "",
   declaration_number: "",
@@ -20,7 +20,7 @@ export function useAppStore() {
   const [searchToken, setSearchToken] = useState("");
   const [searchTokenValid, setSearchTokenValid] = useState<boolean | null>(null);
   const [searchTokenChecking, setSearchTokenChecking] = useState(false);
-  const [portCode, setPortCode] = useState("41");
+  const [portCode, setPortCode] = useState("31");
 
   const [drivers, setDrivers] = useState<DriverState[]>([EMPTY_DRIVER()]);
 

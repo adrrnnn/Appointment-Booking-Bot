@@ -1,6 +1,6 @@
 {
   "name": "appointment-booking-bot",
-  "version": "1.0.1",
+  "version": "2.1.1",
   "description": "Fasah port appointment booking bot",
   "main": "out/main/index.js",
   "scripts": {
@@ -11,6 +11,7 @@
     "verify": "node scripts/verify.js",
     "verify:release": "npm run build && npm --prefix bot run build && npm run verify",
     "make-manual": "node make-manual.js",
+    "smoke:schedule": "node scripts/smoke-schedule-logic.js",
     "postinstall": "electron-rebuild -f -w better-sqlite3"
   },
   "dependencies": {

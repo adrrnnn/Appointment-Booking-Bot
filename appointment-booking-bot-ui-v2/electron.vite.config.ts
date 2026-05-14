@@ -38,6 +38,8 @@ export default defineConfig({
       alias: {
         "@": resolve(__dirname, "src"),
       },
+      // Prefer TypeScript sources when both Foo.tsx and Foo.jsx exist (otherwise Vite picks .jsx first).
+      extensions: [".mjs", ".js", ".mts", ".ts", ".tsx", ".jsx", ".json"],
     },
     plugins: [react()],
   },

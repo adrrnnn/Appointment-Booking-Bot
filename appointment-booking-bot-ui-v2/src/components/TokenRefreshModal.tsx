@@ -6,6 +6,8 @@ interface Props {
   preset: DriverPreset;
   onConfirm: (taskId: string, searchToken: string, bookingTokens: string[]) => void;
   onDismiss: () => void;
+  /** Returns error message if saved tokens cannot be used; null = modal closed via confirm */
+  onUseSavedTokens?: () => string | null;
 }
 
 function formatTime(ts: number): string {
@@ -19,7 +21,7 @@ function minutesUntil(ts: number): number {
   return Math.max(0, Math.round((ts - Date.now()) / 60_000));
 }
 
-export function TokenRefreshModal({ task, preset, onConfirm, onDismiss }: Props) {
+export function TokenRefreshModal({ task, preset, onConfirm, onDismiss, onUseSavedTokens }: Props) {
   const [searchToken, setSearchToken] = useState("");
   const [bookingInput, setBookingInput] = useState("");
   const [bookingTokens, setBookingTokens] = useState<string[]>([]);
@@ -28,6 +30,7 @@ export function TokenRefreshModal({ task, preset, onConfirm, onDismiss }: Props)
   const [bookingValidateError, setBookingValidateError] = useState(false);
   const [bookingValidating, setBookingValidating] = useState(false);
   const [validatedBookingDraft, setValidatedBookingDraft] = useState<string | null>(null);
+  const [savedTokensError, setSavedTokensError] = useState<string | null>(null);
 
   const bookingTrim = bookingInput.trim();
   const canAddBooking =
@@ -77,6 +80,34 @@ export function TokenRefreshModal({ task, preset, onConfirm, onDismiss }: Props)
         </div>
 
         <div className="px-5 py-4 space-y-4">
+          {onUseSavedTokens && (
+            <div className="flex flex-col gap-2">
+              <button
+                type="button"
+                className="btn-primary text-xs px-3 py-2 w-full"
+                onClick={() => {
+                  setSavedTokensError(null);
+                  const err = onUseSavedTokens();
+                  if (err) setSavedTokensError(err);
+                }}
+              >
+                Use same tokens (session search + preset booking)
+              </button>
+              <button
+                type="button"
+                className="btn-secondary text-xs px-3 py-2 w-full"
+                onClick={() => {
+                  setSavedTokensError(null);
+                  document.getElementById("token-modal-search")?.focus();
+                }}
+              >
+                Enter new tokens (below)
+              </button>
+              {savedTokensError && (
+                <p className="text-xs text-amber-600 dark:text-amber-400">{savedTokensError}</p>
+              )}
+            </div>
+          )}
           <div className="bg-accent/30 rounded-md px-3 py-2 text-xs text-muted-foreground">
             Task: <span className="text-foreground font-medium">{task.presetName}</span>
             {" "} - Driver {task.driverIdx + 1}
@@ -87,6 +118,7 @@ export function TokenRefreshModal({ task, preset, onConfirm, onDismiss }: Props)
             <label className="label">Search Token</label>
             <div className="relative">
               <input
+                id="token-modal-search"
                 type={showSearch ? "text" : "password"}
                 className="input-field font-mono text-xs pr-12"
                 placeholder="Paste fresh search token..."

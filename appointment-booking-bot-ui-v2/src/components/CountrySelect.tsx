@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { FlagComponent } from "country-flag-icons/react/3x2";
 import * as Flags from "country-flag-icons/react/3x2";
-import { MOST_USED_COUNTRIES, ALL_COUNTRIES, type Country } from "@/data/countries";
+import { NONE_COUNTRY, MOST_USED_COUNTRIES, ALL_COUNTRIES, type Country } from "@/data/countries";
 
 interface Props {
   value: string;
@@ -31,7 +31,9 @@ export function CountrySelect({ value, onChange, placeholder = "Select country" 
   const restFiltered = filter(allUnique);
 
   const selected =
-    [...MOST_USED_COUNTRIES, ...ALL_COUNTRIES].find((c) => c.apiValue === value || c.code === value) ?? null;
+    value === ""
+      ? NONE_COUNTRY
+      : [...MOST_USED_COUNTRIES, ...ALL_COUNTRIES].find((c) => c.apiValue === value || c.code === value) ?? null;
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -50,7 +52,7 @@ export function CountrySelect({ value, onChange, placeholder = "Select country" 
       >
         {selected ? (
           <>
-            <Flag code={selected.code} />
+            {selected.code ? <Flag code={selected.code} /> : null}
             <span>{selected.name}</span>
           </>
         ) : (
@@ -71,6 +73,21 @@ export function CountrySelect({ value, onChange, placeholder = "Select country" 
             />
           </div>
           <div className="overflow-y-auto">
+            {!search && (
+              <button
+                type="button"
+                onClick={() => {
+                  onChange(NONE_COUNTRY.apiValue, NONE_COUNTRY.code);
+                  setOpen(false);
+                  setSearch("");
+                }}
+                className={`w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-accent transition-colors ${
+                  value === "" ? "bg-primary/10 text-primary" : "text-foreground"
+                }`}
+              >
+                <span>{NONE_COUNTRY.name}</span>
+              </button>
+            )}
             {mostUsedFiltered.length > 0 && (
               <>
                 <div className="px-3 py-1 text-xs text-muted-foreground font-medium bg-accent/30">
@@ -78,7 +95,7 @@ export function CountrySelect({ value, onChange, placeholder = "Select country" 
                 </div>
                 {mostUsedFiltered.map((c) => (
                   <CountryOption
-                    key={c.apiValue}
+                    key={`${c.code}-${c.apiValue}`}
                     country={c}
                     selected={value === c.apiValue}
                     onSelect={() => { onChange(c.apiValue, c.code); setOpen(false); setSearch(""); }}
@@ -93,7 +110,7 @@ export function CountrySelect({ value, onChange, placeholder = "Select country" 
             )}
             {restFiltered.map((c) => (
               <CountryOption
-                key={c.apiValue}
+                key={`${c.code}-${c.apiValue}`}
                 country={c}
                 selected={value === c.apiValue}
                 onSelect={() => { onChange(c.apiValue, c.code); setOpen(false); setSearch(""); }}

@@ -4,6 +4,9 @@ export interface Country {
   apiValue: string;
 }
 
+/** Empty apiValue — user must pick a real country before booking */
+export const NONE_COUNTRY: Country = { code: "", name: "— None —", apiValue: "" };
+
 export const MOST_USED_COUNTRIES: Country[] = [
   { code: "EG", name: "Egypt", apiValue: "214" },
   { code: "JO", name: "Jordan", apiValue: "112" },

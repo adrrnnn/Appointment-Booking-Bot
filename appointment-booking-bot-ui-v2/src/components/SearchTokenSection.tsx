@@ -104,6 +104,13 @@ export function SearchTokenSection({ store }: Props) {
             type="button"
             className="btn-secondary"
             onClick={() => {
+              if (
+                !window.confirm(
+                  "Clear this session's search token and log output? This does not remove drivers or scheduled tasks.",
+                )
+              ) {
+                return;
+              }
               store.setSearchToken("");
               store.setSearchTokenValid(null);
               store.clearLogs();
