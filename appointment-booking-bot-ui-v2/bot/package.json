@@ -1,0 +1,23 @@
+{
+  "name": "port-appointment-finder",
+  "version": "14.0.0",
+  "description": "",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "prestart": "npm run build"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "@types/node": "^22.15.3",
+    "@types/prompts": "^2.4.9",
+    "typescript": "~5.8.3"
+  },
+  "dependencies": {
+    "prompts": "^2.4.2"
+  }
+}

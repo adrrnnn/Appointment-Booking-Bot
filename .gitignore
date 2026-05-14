@@ -1,2 +1,8 @@
 node_modules/
 dist/
+
+# Local verification copy (full npm tree + release output); do not commit
+_verify_ui_v2_clean/
+
+# Avoid committing release artifacts from desktop handoffs
+*.zip

@@ -1,0 +1,27 @@
+Fresh Windows VM (or second PC) — installer-only smoke
+======================================================
+Prereq: copy only release artifacts (Setup*.exe and/or *portable*.exe). No Node.js required for end users.
+
+1. Install NSIS build; complete wizard. Note SmartScreen if unsigned (expected, not an app defect).
+
+2. First launch: window opens, no immediate crash. If DB/native errors appear, capture screenshot + %APPDATA% logs if any.
+
+3. Session flow: create or pick session; confirm UI responsive.
+
+4. Console: add at least one driver row with placeholder data (for crash test). Save if applicable.
+
+5. Start bot: utility process should start; log lines appear in UI. Stop bot; process should end cleanly.
+
+6. App close guard: start bot again; use window X — expect native dialog blocking or warning while bot runs.
+   Dismiss and stop bot; closing should work.
+
+7. Multi-session: add second session tab; try closing first tab with X while bot idle (confirm).
+   Start bot in one session; ensure that session tab cannot be closed until bot stops (per design).
+
+8. Portable exe: run from C:\Temp\AppointmentBot\ (no spaces). Repeat from a folder path that contains spaces if you need that scenario.
+
+9. Uninstall (optional): confirm uninstaller runs; decide whether to keep userData (planner default: deleteAppDataOnUninstall is false).
+
+Automated artifact check (developer machine, before copying to VM):
+  npm run verify:release
+  npm run verify -- --checklist

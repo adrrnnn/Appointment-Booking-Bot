@@ -1,0 +1,22 @@
+Live Fasah smoke — how to read “errors”
+========================================
+Use valid portal tokens in Console. Run a short session and watch UI log stream.
+
+Treat as likely APP / orchestration regression:
+- App crashes or white screen on start/stop.
+- better-sqlite3 or native module load failure on first run.
+- Bot never starts (no utility process, no logs) when Start is clicked and config validates.
+- Uncaught exception in bot immediately on launch (stack trace in logs) with any token set.
+- Window/session close guards broken (e.g. quit with bot running with no warning).
+
+Treat as likely CREDENTIAL / API / ENVIRONMENT (not necessarily UI bugs):
+- HTTP 401, 403, invalid session / token messages from portal.
+- Rate limit or cooldown messages matching live API behavior.
+- Timeouts or “no appointments” when the portal truly has none.
+- Site or API changes (new fields, new endpoints) causing bot logic errors — needs bot update.
+
+Documentation for a release:
+- Git commit hash, npm version, Windows build (e.g. 10/11 + build).
+- Installer filename(s) tested (NSIS + portable).
+- VM OS version if Tier 3 was run.
+- Short note: live booking not exercised / exercised with account X (redact secrets).
