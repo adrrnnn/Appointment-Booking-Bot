@@ -5,6 +5,8 @@
 module.exports = {
   appId: "com.appointmentbot.app",
   productName: "Appointment Bot",
+  /** GitHub releases / predictable installer name */
+  artifactName: "Appointment.Bot.Setup.${version}.${ext}",
   copyright: "Copyright 2026",
   asar: true,
   directories: {
