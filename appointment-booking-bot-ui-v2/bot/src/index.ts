@@ -12,9 +12,9 @@ import {
 
 type PortRow = (typeof ports)[number];
 
-const VERSION = "14.1";
+const VERSION = "14.3.1";
 
-const MAX_TRIES = 3000;
+const MAX_TRIES = 6000;
 const POLL_INTERVAL_MS = 500;
 const RATE_LIMIT_BACKOFF_MS = 5000;
 const NO_SLOTS_DELAY_MS = 1_000;
@@ -34,6 +34,11 @@ const SCHEDULE_429_MAX_BACKOFF_MS = 10_000;
 const SECTION_WIDTH = 40;
 
 const NIGHT_HOURS = [19, 20, 21, 22, 23];
+
+/** Riyadh-local hour 0–12 inclusive when no tier hour prefs (Mohamed: prioritize morning). */
+function isMorningHour(h: number): boolean {
+  return h >= 0 && h <= 12;
+}
 
 const REGEX_RATE_LIMIT = /rate limit/i;
 const REGEX_WAIT_MINUTE = /wait for a minute/i;
@@ -731,6 +736,12 @@ function sortSlotsByStart(slots: ScheduleSlot[]): ScheduleSlot[] {
   });
 }
 
+function compareSlotsByStart(a: ScheduleSlot, b: ScheduleSlot): number {
+  a._parsedFromMs ??= new Date(a.schedule_from).getTime();
+  b._parsedFromMs ??= new Date(b.schedule_from).getTime();
+  return a._parsedFromMs - b._parsedFromMs;
+}
+
 function applyTierFilter(
   slots: ScheduleSlot[],
   prefs: HourPrefs,
@@ -758,16 +769,33 @@ function applyTierFilter(
     }
   }
 
-  const nightRest = rest.filter((s) => NIGHT_HOURS.includes(slotHour(s)));
-  nightRest.sort((a, b) => {
-    const pa = NIGHT_HOURS.indexOf(slotHour(a));
-    const pb = NIGHT_HOURS.indexOf(slotHour(b));
-    if (pa !== pb) return pa - pb;
-    return new Date(a.schedule_from).getTime() - new Date(b.schedule_from).getTime();
-  });
-  const otherRest = rest.filter((s) => !NIGHT_HOURS.includes(slotHour(s)));
+  const noHourPrefs = prefs.tier1 === null && prefs.tier2Start === null;
 
-  const combined = [...t1, ...t2, ...nightRest, ...otherRest];
+  let orderedRest: ScheduleSlot[];
+  if (noHourPrefs) {
+    const morningRest = rest.filter((s) => isMorningHour(slotHour(s)));
+    morningRest.sort((a, b) => {
+      const ha = slotHour(a);
+      const hb = slotHour(b);
+      if (ha !== hb) return ha - hb;
+      return compareSlotsByStart(a, b);
+    });
+    const otherRest = rest.filter((s) => !isMorningHour(slotHour(s)));
+    otherRest.sort(compareSlotsByStart);
+    orderedRest = [...morningRest, ...otherRest];
+  } else {
+    const nightRest = rest.filter((s) => NIGHT_HOURS.includes(slotHour(s)));
+    nightRest.sort((a, b) => {
+      const pa = NIGHT_HOURS.indexOf(slotHour(a));
+      const pb = NIGHT_HOURS.indexOf(slotHour(b));
+      if (pa !== pb) return pa - pb;
+      return compareSlotsByStart(a, b);
+    });
+    const otherRest = rest.filter((s) => !NIGHT_HOURS.includes(slotHour(s)));
+    orderedRest = [...nightRest, ...otherRest];
+  }
+
+  const combined = [...t1, ...t2, ...orderedRest];
   const bestTier: 1 | 2 | 3 = t1.length > 0 ? 1 : t2.length > 0 ? 2 : 3;
   return { candidates: combined, tier: bestTier };
 }
