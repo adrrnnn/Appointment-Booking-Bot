@@ -4,9 +4,9 @@ import type { ScheduledTask, DriverPreset } from "@/types";
 interface Props {
   task: ScheduledTask;
   preset: DriverPreset;
+  isSessionRun?: boolean;
   onConfirm: (taskId: string, searchToken: string, bookingTokens: string[]) => void;
   onDismiss: () => void;
-  /** Returns error message if saved tokens cannot be used; null = modal closed via confirm */
   onUseSavedTokens?: () => string | null;
 }
 
@@ -21,7 +21,14 @@ function minutesUntil(ts: number): number {
   return Math.max(0, Math.round((ts - Date.now()) / 60_000));
 }
 
-export function TokenRefreshModal({ task, preset, onConfirm, onDismiss, onUseSavedTokens }: Props) {
+export function TokenRefreshModal({
+  task,
+  preset,
+  isSessionRun = false,
+  onConfirm,
+  onDismiss,
+  onUseSavedTokens,
+}: Props) {
   const [searchToken, setSearchToken] = useState("");
   const [bookingInput, setBookingInput] = useState("");
   const [bookingTokens, setBookingTokens] = useState<string[]>([]);
@@ -57,21 +64,27 @@ export function TokenRefreshModal({ task, preset, onConfirm, onDismiss, onUseSav
   }
 
   function handleConfirm() {
-    if (!searchToken.trim() || bookingTokens.length === 0) return;
+    if (!searchToken.trim()) return;
+    if (isSessionRun) {
+      onConfirm(task.id, searchToken.trim(), []);
+      return;
+    }
+    if (bookingTokens.length === 0) return;
     onConfirm(task.id, searchToken.trim(), bookingTokens);
   }
 
-  const canConfirm = searchToken.trim().length > 0 && bookingTokens.length > 0;
+  const canConfirm = isSessionRun ? searchToken.trim().length > 0 : searchToken.trim().length > 0 && bookingTokens.length > 0;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
       <div className="card w-full max-w-md mx-4 shadow-2xl">
-        {/* Header */}
         <div className="px-5 py-4 border-b border-border">
           <div className="flex items-center gap-3">
             <div className="w-2 h-2 rounded-full bg-yellow-400 animate-pulse flex-shrink-0" />
             <div>
-              <h2 className="text-sm font-semibold text-foreground">Fresh Tokens Required</h2>
+              <h2 className="text-sm font-semibold text-foreground">
+                {isSessionRun ? "Session run: search token" : "Fresh tokens required"}
+              </h2>
               <p className="text-xs text-muted-foreground mt-0.5">
                 Scheduled run starts in {minutesUntil(task.scheduledFor)} min ({formatTime(task.scheduledFor)})
               </p>
@@ -91,7 +104,8 @@ export function TokenRefreshModal({ task, preset, onConfirm, onDismiss, onUseSav
                   if (err) setSavedTokensError(err);
                 }}
               >
-                Use same tokens (session search + preset booking)
+                Use same tokens (header search
+                {isSessionRun ? " + each driver tab booking tokens" : " + preset booking"})
               </button>
               <button
                 type="button"
@@ -110,10 +124,16 @@ export function TokenRefreshModal({ task, preset, onConfirm, onDismiss, onUseSav
           )}
           <div className="bg-accent/30 rounded-md px-3 py-2 text-xs text-muted-foreground">
             Task: <span className="text-foreground font-medium">{task.presetName}</span>
-            {" "} - Driver {task.driverIdx + 1}
+            {isSessionRun ? (
+              <span className="text-foreground"> (all ready driver tabs at run time)</span>
+            ) : (
+              <>
+                {" "}
+                - Driver {task.driverIdx + 1}
+              </>
+            )}
           </div>
 
-          {/* Search token */}
           <div>
             <label className="label">Search Token</label>
             <div className="relative">
@@ -137,7 +157,13 @@ export function TokenRefreshModal({ task, preset, onConfirm, onDismiss, onUseSav
             </div>
           </div>
 
-          {/* Booking tokens */}
+          {isSessionRun && (
+            <p className="text-xs text-muted-foreground">
+              Booking tokens stay on each driver tab. Enter the search token here only.
+            </p>
+          )}
+
+          {!isSessionRun && (
           <div>
             <label className="label">
               Booking Tokens for {preset.driver.driverName || `Driver ${task.driverIdx + 1}`}
@@ -259,9 +285,10 @@ export function TokenRefreshModal({ task, preset, onConfirm, onDismiss, onUseSav
               </div>
             )}
           </div>
+          )}
+
         </div>
 
-        {/* Footer */}
         <div className="px-5 py-3 border-t border-border flex items-center justify-between gap-3">
           <p className="text-xs text-muted-foreground">
             Bot will start automatically at {formatTime(task.scheduledFor)}

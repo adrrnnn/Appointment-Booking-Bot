@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, type Dispatch, type MutableRefObject, type SetStateAction } from "react";
-import { useAppStore } from "@/store/appStore";
+import { useAppStore, type AppStore } from "@/store/appStore";
 import { useScheduleTimer, type ScheduleTimerCallbacks } from "@/store/useScheduleTimer";
 import { SearchTokenSection } from "./SearchTokenSection";
 import { DriverTabs } from "./DriverTabs";
@@ -7,8 +7,14 @@ import { SchedulingArea } from "./SchedulingArea";
 import { BookingConsole } from "./BookingConsole";
 import { OutputArea } from "./OutputArea";
 import { TokenRefreshModal } from "./TokenRefreshModal";
-import type { BotEvent, ScheduledTask, DriverPreset } from "@/types";
+import type { BotEvent, DriverConfig, ScheduledTask, DriverPreset } from "@/types";
+import { SESSION_SCHEDULE_PRESET_ID } from "@/types";
 import { driverWithBookingTokens, normalizeDriverPreset } from "@/utils/driverConfig";
+import {
+  assertAtLeastOneSessionDriver,
+  collectReadyDrivers,
+  sessionSchedulePlaceholderPreset,
+} from "@/utils/sessionRun";
 
 const TABS = ["Drivers", "Scheduling", "Console", "Results"] as const;
 type Tab = (typeof TABS)[number];
@@ -36,6 +42,15 @@ function enqueuePair(
   });
 }
 
+function isSessionTask(task: ScheduledTask): boolean {
+  return task.runMode === "session" || task.presetId === SESSION_SCHEDULE_PRESET_ID;
+}
+
+function presetForScheduledTask(store: AppStore, task: ScheduledTask): DriverPreset | undefined {
+  if (isSessionTask(task)) return sessionSchedulePlaceholderPreset();
+  return store.presets.find((p) => p.id === task.presetId);
+}
+
 export function SessionContainer({ sessionId, isActive, theme, onToggleTheme, onBotRunningChange }: Props) {
   const store = useAppStore();
   const [tab, setTab] = useState<Tab>("Drivers");
@@ -60,16 +75,37 @@ export function SessionContainer({ sessionId, isActive, theme, onToggleTheme, on
     },
     onStartTask: (task, preset) => {
       if (startedScheduledTaskIdsRef.current.has(task.id)) return;
-      if (!task.freshSearchToken || !task.freshBookingTokens?.length) return;
+      const session = isSessionTask(task);
+      if (session) {
+        if (!task.freshSearchToken) return;
+      } else {
+        if (!task.freshSearchToken || !task.freshBookingTokens?.length) return;
+      }
+
+      let drivers: DriverConfig[];
+      if (session) {
+        drivers = collectReadyDrivers(store);
+        const err = assertAtLeastOneSessionDriver(drivers);
+        if (err) {
+          const next = store.scheduledTasks.map((t) =>
+            t.id === task.id ? { ...t, status: "failed" as const } : t,
+          );
+          store.setScheduledTasks(next);
+          window.api.saveSchedule(sessionId, next);
+          return;
+        }
+      } else {
+        drivers = [driverWithBookingTokens(preset.driver, task.freshBookingTokens!)];
+      }
+
       startedScheduledTaskIdsRef.current.add(task.id);
-      const driver = driverWithBookingTokens(preset.driver, task.freshBookingTokens);
       store.setBotRunning(true);
       store.clearLogs();
       setTab("Console");
       void window.api.botStart(sessionId, {
         searchToken: task.freshSearchToken,
         port_code: store.portCode,
-        drivers: [driver],
+        drivers,
       }).finally(() => {
         startedScheduledTaskIdsRef.current.delete(task.id);
         store.setBotRunning(false);
@@ -136,43 +172,84 @@ export function SessionContainer({ sessionId, isActive, theme, onToggleTheme, on
     return unsub;
   }, [store, sessionId]);
 
+  function handleStartSessionNow() {
+    const search = store.searchToken.trim();
+    if (!search) {
+      window.alert("Paste a search token in the header first.");
+      return;
+    }
+    const drivers = collectReadyDrivers(store);
+    const err = assertAtLeastOneSessionDriver(drivers);
+    if (err) {
+      window.alert(err);
+      return;
+    }
+    store.setBotRunning(true);
+    store.clearLogs();
+    setTab("Console");
+    void window.api.botStart(sessionId, {
+      searchToken: search,
+      port_code: store.portCode,
+      drivers,
+    }).finally(() => store.setBotRunning(false));
+  }
+
   function handleTokenRefreshConfirm(taskId: string, searchToken: string, bookingTokens: string[]) {
+    const taskBefore = store.scheduledTasks.find((t) => t.id === taskId);
+    const session = taskBefore ? isSessionTask(taskBefore) : false;
+
     const updated = store.scheduledTasks.map((t) =>
       t.id === taskId
-        ? { ...t, status: "tokens_ready" as const, freshSearchToken: searchToken, freshBookingTokens: bookingTokens }
+        ? {
+            ...t,
+            status: "tokens_ready" as const,
+            freshSearchToken: searchToken,
+            freshBookingTokens: session ? [] : bookingTokens,
+          }
         : t,
     );
     const taskRow = updated.find((t) => t.id === taskId);
+    const rowSession = taskRow ? isSessionTask(taskRow) : false;
     store.setScheduledTasks(updated);
     window.api.saveSchedule(sessionId, updated);
     popNextTokenModal();
 
-    if (
-      taskRow &&
-      taskRow.freshSearchToken &&
-      taskRow.freshBookingTokens?.length &&
-      taskRow.scheduledFor <= Date.now()
-    ) {
+    if (taskRow && taskRow.freshSearchToken && taskRow.scheduledFor <= Date.now()) {
+      if (!rowSession && !taskRow.freshBookingTokens?.length) return;
+
       if (startedScheduledTaskIdsRef.current.has(taskId)) return;
       startedScheduledTaskIdsRef.current.add(taskId);
-      const preset = store.presets.find((p) => p.id === taskRow.presetId);
+      const preset = presetForScheduledTask(store, taskRow);
       if (!preset) {
         startedScheduledTaskIdsRef.current.delete(taskId);
         return;
       }
+
+      let drivers: DriverConfig[];
+      if (rowSession) {
+        drivers = collectReadyDrivers(store);
+        const err = assertAtLeastOneSessionDriver(drivers);
+        if (err) {
+          startedScheduledTaskIdsRef.current.delete(taskId);
+          window.alert(err);
+          return;
+        }
+      } else {
+        drivers = [driverWithBookingTokens(preset.driver, taskRow.freshBookingTokens!)];
+      }
+
       const withRunning = updated.map((t) =>
         t.id === taskId ? { ...t, status: "running" as const } : t,
       );
       store.setScheduledTasks(withRunning);
       window.api.saveSchedule(sessionId, withRunning);
-      const driver = driverWithBookingTokens(preset.driver, taskRow.freshBookingTokens);
       store.setBotRunning(true);
       store.clearLogs();
       setTab("Console");
       void window.api.botStart(sessionId, {
         searchToken: taskRow.freshSearchToken,
         port_code: store.portCode,
-        drivers: [driver],
+        drivers,
       }).finally(() => {
         startedScheduledTaskIdsRef.current.delete(taskId);
         store.setBotRunning(false);
@@ -183,33 +260,59 @@ export function SessionContainer({ sessionId, isActive, theme, onToggleTheme, on
   function handleUseSavedTokensFromModal(): string | null {
     if (!tokenRefreshTask) return "No active task.";
     const search = store.searchToken.trim();
-    const booking = tokenRefreshTask.preset.driver.bookingTokens.map((t) => t.trim()).filter(Boolean);
     if (!search) return "Paste or validate a search token in the header first.";
-    if (booking.length === 0) return "This preset has no booking tokens. Add them on the preset or enter new tokens below.";
+    if (isSessionTask(tokenRefreshTask.task)) {
+      const err = assertAtLeastOneSessionDriver(collectReadyDrivers(store));
+      if (err) return err;
+      handleTokenRefreshConfirm(tokenRefreshTask.task.id, search, []);
+      return null;
+    }
+    const booking = tokenRefreshTask.preset.driver.bookingTokens.map((t) => t.trim()).filter(Boolean);
+    if (booking.length === 0) {
+      return "This preset has no booking tokens. Add them on the preset or enter new tokens below.";
+    }
     handleTokenRefreshConfirm(tokenRefreshTask.task.id, search, booking);
     return null;
   }
 
   function handleForceStart(task: ScheduledTask) {
-    const preset = store.presets.find((p) => p.id === task.presetId);
+    const preset = presetForScheduledTask(store, task);
     if (!preset) return;
-    if (!task.freshSearchToken || !task.freshBookingTokens?.length) {
+    const session = isSessionTask(task);
+    if (session) {
+      if (!task.freshSearchToken) {
+        enqueuePair(tokenQueueRef, setTokenRefreshTask, task, preset);
+        return;
+      }
+    } else if (!task.freshSearchToken || !task.freshBookingTokens?.length) {
       enqueuePair(tokenQueueRef, setTokenRefreshTask, task, preset);
       return;
     }
+
+    let drivers: DriverConfig[];
+    if (session) {
+      drivers = collectReadyDrivers(store);
+      const err = assertAtLeastOneSessionDriver(drivers);
+      if (err) {
+        window.alert(err);
+        return;
+      }
+    } else {
+      drivers = [driverWithBookingTokens(preset.driver, task.freshBookingTokens!)];
+    }
+
     const updated = store.scheduledTasks.map((t) =>
       t.id === task.id ? { ...t, status: "running" as const } : t,
     );
     store.setScheduledTasks(updated);
     window.api.saveSchedule(sessionId, updated);
-    const driver = driverWithBookingTokens(preset.driver, task.freshBookingTokens);
     store.setBotRunning(true);
     store.clearLogs();
     setTab("Console");
     void window.api.botStart(sessionId, {
-      searchToken: task.freshSearchToken,
+      searchToken: task.freshSearchToken!,
       port_code: store.portCode,
-      drivers: [driver],
+      drivers,
     }).finally(() => store.setBotRunning(false));
   }
 
@@ -283,7 +386,12 @@ export function SessionContainer({ sessionId, isActive, theme, onToggleTheme, on
         {tab === "Drivers" && <DriverTabs store={store} sessionId={sessionId} />}
         {tab === "Scheduling" && (
           <div className="h-full">
-            <SchedulingArea store={store} sessionId={sessionId} onForceStart={handleForceStart} />
+            <SchedulingArea
+              store={store}
+              sessionId={sessionId}
+              onForceStart={handleForceStart}
+              onStartSessionNow={handleStartSessionNow}
+            />
           </div>
         )}
         {tab === "Console" && <BookingConsole store={store} sessionId={sessionId} />}
@@ -298,6 +406,7 @@ export function SessionContainer({ sessionId, isActive, theme, onToggleTheme, on
         <TokenRefreshModal
           task={tokenRefreshTask.task}
           preset={tokenRefreshTask.preset}
+          isSessionRun={isSessionTask(tokenRefreshTask.task)}
           onConfirm={handleTokenRefreshConfirm}
           onDismiss={handleTokenRefreshDismiss}
           onUseSavedTokens={handleUseSavedTokensFromModal}

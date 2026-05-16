@@ -126,11 +126,14 @@ if (printChecklist) {
 --- VM / release checklist (human) ---
 1. Copy release/Setup*.exe (and portable exe if needed) to a clean Windows VM or machine.
 2. Install from Setup; launch app. SmartScreen warning is expected if unsigned.
-3. Create session, open Console, add driver row; start bot — logs should stream; stop bot.
-4. With bot running, try closing app — native confirm should appear.
+3. Create session, open Console, add driver row; start bot. Logs should stream; stop bot.
+4. With bot running, try closing app. Native confirm should appear.
 5. Multi-session: add second session; close tab (x) only when bot not running.
 6. Portable: run from path without spaces, then from path with spaces if you rely on that.
 7. Live Fasah: use valid tokens. HTTP 401/403/timeouts are often credential/API, not UI bugs.
+8. Scheduling: after Load into tabs, modal should offer Start now, Schedule for later, or Decide later.
+9. Full session: four driver tabs with presets/tokens. Start now should run one orchestrator (multi-driver logs).
+10. Multi-session mutex: start bot in session A, then in session B. Expect error in B, no second bot process.
 ---`);
 }
 

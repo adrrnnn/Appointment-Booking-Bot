@@ -1,4 +1,4 @@
-Fresh Windows VM (or second PC) — installer-only smoke
+Fresh Windows VM (or second PC): installer-only smoke
 ======================================================
 Prereq: copy only release artifacts (Setup*.exe and/or *portable*.exe). No Node.js required for end users.
 
@@ -12,7 +12,7 @@ Prereq: copy only release artifacts (Setup*.exe and/or *portable*.exe). No Node.
 
 5. Start bot: utility process should start; log lines appear in UI. Stop bot; process should end cleanly.
 
-6. App close guard: start bot again; use window X — expect native dialog blocking or warning while bot runs.
+6. App close guard: start bot again; use window X. Expect native dialog blocking or warning while bot runs.
    Dismiss and stop bot; closing should work.
 
 7. Multi-session: add second session tab; try closing first tab with X while bot idle (confirm).

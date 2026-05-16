@@ -1,11 +1,6 @@
-/**
- * electron-builder configuration
- * Produces a standard Windows NSIS installer (.exe)
- */
 module.exports = {
   appId: "com.appointmentbot.app",
   productName: "Appointment Bot",
-  /** GitHub releases / predictable installer name */
   artifactName: "Appointment.Bot.Setup.${version}.${ext}",
   copyright: "Copyright 2026",
   asar: true,
@@ -43,6 +38,9 @@ module.exports = {
     icon: "resources/icon.ico",
     signingHashAlgorithms: null,
     sign: null,
+  },
+  portable: {
+    artifactName: "Appointment.Bot.Portable.${version}.${ext}",
   },
   nsis: {
     oneClick: false,

@@ -4,7 +4,6 @@ import { runOrchestrator, stopSession, stopAll, type BotConfig } from "./engine-
 export class BotRunner {
   private win: BrowserWindow;
   private running = new Set<string>();
-  /** Serialize botStart per session so overlapping runs queue */
   private chains = new Map<string, Promise<void>>();
 
   constructor(win: BrowserWindow) {
@@ -25,6 +24,15 @@ export class BotRunner {
 
   async start(sessionId: string, config: BotConfig): Promise<void> {
     const run = async (): Promise<void> => {
+      const other = [...this.running].filter((id) => id !== sessionId);
+      if (other.length > 0) {
+        this.emit(
+          sessionId,
+          "error",
+          "Another session is running the bot. Stop it there or wait until it finishes.",
+        );
+        return;
+      }
       this.running.add(sessionId);
       try {
         await runOrchestrator(sessionId, config, (sid, type, message, driverIdx, data) => {

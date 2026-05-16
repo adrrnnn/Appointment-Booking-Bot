@@ -30,6 +30,8 @@ export interface DriverPreset {
   savedAt: number;
 }
 
+export type ScheduledRunMode = "single" | "session";
+
 export interface ScheduledTask {
   id: string;
   presetId: string;
@@ -37,9 +39,12 @@ export interface ScheduledTask {
   driverIdx: number;
   scheduledFor: number;
   status: "pending" | "awaiting_tokens" | "tokens_ready" | "running" | "done" | "failed";
+  runMode?: ScheduledRunMode;
   freshSearchToken?: string;
   freshBookingTokens?: string[];
 }
+
+export const SESSION_SCHEDULE_PRESET_ID = "__session__";
 
 export type BotEventType = "log" | "status" | "booked" | "failed" | "stopped" | "error" | "ratelimit";
 

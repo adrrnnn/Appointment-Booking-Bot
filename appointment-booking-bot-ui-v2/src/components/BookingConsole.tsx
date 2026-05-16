@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import type { AppStore } from "@/store/appStore";
 import type { BotEvent } from "@/types";
+import { collectReadyDrivers } from "@/utils/sessionRun";
 
 interface Props {
   store: AppStore;
@@ -51,20 +52,7 @@ export function BookingConsole({ store, sessionId }: Props) {
 
   async function handleStart() {
     if (!store.searchToken.trim()) return;
-    const drivers = store.drivers
-      .filter((d) => d.driverName && d.bookingTokens.length > 0)
-      .map((d) => ({
-        driverName: d.driverName,
-        bookingTokens: d.bookingTokens,
-        licenseNo: d.licenseNo,
-        plateCountry: d.plateCountry,
-        residentCountry: d.residentCountry,
-        vehicleSequenceNumber: d.vehicleSequenceNumber,
-        chassisNo: d.chassisNo,
-        declaration_number: d.declaration_number,
-        hourPrefs: d.hourPrefs,
-      }));
-
+    const drivers = collectReadyDrivers(store);
     if (drivers.length === 0) return;
 
     store.setBotRunning(true);
@@ -86,8 +74,10 @@ export function BookingConsole({ store, sessionId }: Props) {
     store.setBotRunning(false);
   }
 
-  const canStart = !store.botRunning && !!store.searchToken.trim() &&
-    store.drivers.some((d) => d.driverName && d.bookingTokens.length > 0);
+  const canStart =
+    !store.botRunning &&
+    !!store.searchToken.trim() &&
+    collectReadyDrivers(store).length > 0;
 
   return (
     <div className="card flex flex-col overflow-hidden h-full">

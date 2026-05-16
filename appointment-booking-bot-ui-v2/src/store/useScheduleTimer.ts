@@ -1,19 +1,17 @@
 import { useEffect, useRef, type MutableRefObject } from "react";
 import type { AppStore } from "./appStore";
 import type { ScheduledTask, DriverPreset } from "@/types";
+import { SESSION_SCHEDULE_PRESET_ID } from "@/types";
+import { sessionSchedulePlaceholderPreset } from "@/utils/sessionRun";
 
 const TOKEN_PROMPT_LEAD_MS = 40 * 60 * 1000; // 40 minutes before
-const CHECK_INTERVAL_MS = 10_000; // 10s — fire closer to scheduled time
+const CHECK_INTERVAL_MS = 10_000;
 
 export interface ScheduleTimerCallbacks {
   onPromptTokens: (task: ScheduledTask, preset: DriverPreset) => void;
   onStartTask: (task: ScheduledTask, preset: DriverPreset) => void;
 }
 
-/**
- * Drive scheduled tasks: pending → awaiting_tokens (token UI), then tokens_ready → running at due time.
- * Uses a ref for callbacks so the interval always sees latest handlers without resetting the timer.
- */
 export function useScheduleTimer(
   store: AppStore,
   callbacksRef: MutableRefObject<ScheduleTimerCallbacks>,
@@ -36,7 +34,10 @@ export function useScheduleTimer(
 
       for (let i = 0; i < next.length; i++) {
         const task = next[i];
-        const preset = presets.find((p) => p.id === task.presetId);
+        const preset: DriverPreset | undefined =
+          task.runMode === "session" || task.presetId === SESSION_SCHEDULE_PRESET_ID
+            ? sessionSchedulePlaceholderPreset()
+            : presets.find((p) => p.id === task.presetId);
         if (!preset) continue;
 
         const timeUntil = task.scheduledFor - now;

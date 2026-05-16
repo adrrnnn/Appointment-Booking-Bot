@@ -4,6 +4,14 @@
  */
 
 const TOKEN_PROMPT_LEAD_MS = 40 * 60 * 1000;
+const SESSION_SCHEDULE_PRESET_ID = "__session__";
+
+function resolvePreset(task, presets) {
+  if (task.runMode === "session" || task.presetId === SESSION_SCHEDULE_PRESET_ID) {
+    return { id: SESSION_SCHEDULE_PRESET_ID, name: "Full session", driver: {}, savedAt: 0 };
+  }
+  return presets.find((p) => p.id === task.presetId);
+}
 
 function tickOnce(scheduledTasks, presets, now) {
   let next = [...scheduledTasks];
@@ -12,7 +20,7 @@ function tickOnce(scheduledTasks, presets, now) {
 
   for (let i = 0; i < next.length; i++) {
     const task = next[i];
-    const preset = presets.find((p) => p.id === task.presetId);
+    const preset = resolvePreset(task, presets);
     if (!preset) continue;
     const timeUntil = task.scheduledFor - now;
 
@@ -41,7 +49,7 @@ function assert(cond, msg) {
 const preset = { id: "p1", name: "Test", driver: {}, savedAt: 0 };
 const presets = [preset];
 
-// 1) Run in 5 minutes — must prompt (old bug: never prompted)
+// 1) Run in 5 minutes: must prompt (old bug: never prompted)
 const soon = Date.now() + 5 * 60 * 1000;
 let tasks = [
   { id: "a", presetId: "p1", presetName: "T", driverIdx: 0, scheduledFor: soon, status: "pending" },
@@ -76,7 +84,7 @@ tasks = r.next;
 r = tickOnce(tasks, presets, Date.now());
 assert(r.prompts === 0, "awaiting_tokens must not re-trigger token prompt every tick");
 
-// 5) tokens_ready but run still in future — no start
+// 5) tokens_ready but run still in future: no start
 const future = Date.now() + 60 * 60 * 1000;
 tasks = [
   {
@@ -98,5 +106,36 @@ const wayPast = Date.now() - 120_000;
 tasks = [{ id: "e", presetId: "p1", presetName: "T", driverIdx: 0, scheduledFor: wayPast, status: "awaiting_tokens" }];
 r = tickOnce(tasks, presets, Date.now());
 assert(r.next[0].status === "failed", "awaiting_tokens long past due should fail");
+
+// 7) Session task without preset row: still transitions
+tasks = [
+  {
+    id: "sess",
+    presetId: SESSION_SCHEDULE_PRESET_ID,
+    presetName: "Full session",
+    driverIdx: 0,
+    scheduledFor: soon,
+    status: "pending",
+    runMode: "session",
+  },
+];
+r = tickOnce(tasks, [], Date.now());
+assert(r.prompts === 1 && r.next[0].status === "awaiting_tokens", "session pending should enter awaiting_tokens");
+
+tasks = [
+  {
+    id: "sess2",
+    presetId: SESSION_SCHEDULE_PRESET_ID,
+    presetName: "Full session",
+    driverIdx: 0,
+    scheduledFor: Date.now() - 500,
+    status: "tokens_ready",
+    runMode: "session",
+    freshSearchToken: "x",
+    freshBookingTokens: [],
+  },
+];
+r = tickOnce(tasks, [], Date.now());
+assert(r.starts === 1 && r.next[0].status === "running", "session tokens_ready past due should run");
 
 console.log("smoke-schedule-logic: OK");

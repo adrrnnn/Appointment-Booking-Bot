@@ -1,4 +1,4 @@
-Live Fasah smoke — how to read “errors”
+Live Fasah smoke: how to read "errors"
 ========================================
 Use valid portal tokens in Console. Run a short session and watch UI log stream.
 
@@ -13,7 +13,7 @@ Treat as likely CREDENTIAL / API / ENVIRONMENT (not necessarily UI bugs):
 - HTTP 401, 403, invalid session / token messages from portal.
 - Rate limit or cooldown messages matching live API behavior.
 - Timeouts or “no appointments” when the portal truly has none.
-- Site or API changes (new fields, new endpoints) causing bot logic errors — needs bot update.
+- Site or API changes (new fields, new endpoints) causing bot logic errors: needs bot update.
 
 Documentation for a release:
 - Git commit hash, npm version, Windows build (e.g. 10/11 + build).
